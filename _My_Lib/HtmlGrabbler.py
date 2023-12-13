@@ -16,6 +16,7 @@ import requests
 from bs4 import BeautifulSoup
 
 
+# TODO: Einfügen von DocStrings ("""Beschreibender Text""") unter dem Funktionsname
 class DownloadData:
     def __init__(self, url, file, path):
         self.url = url

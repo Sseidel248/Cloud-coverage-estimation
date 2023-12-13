@@ -35,7 +35,8 @@ current_month = today.month
 current_year_month = f"{current_year:04d}{current_month:02d}"
 
 
-def create_stationdata(url, file, target_path):
+# TODO: Einfügen von DocStrings ("""Beschreibender Text""") unter dem Funktionsname
+def _create_stationdata(url, file, target_path):
     if (CLOUDINESS not in url) and (CLOUD_TYPE not in url):
         return DownloadData("", "", "")
     else:
@@ -43,6 +44,12 @@ def create_stationdata(url, file, target_path):
 
 
 def init_weatherstation_data(param_type, target_path):
+    """
+    Hallo Welt
+    :param param_type:
+    :param target_path:
+    :return:
+    """
     if param_type != PARAM_CLOUDINESS and param_type != PARAM_CLOUD_TYPE:
         print(f"Ungültiger Modellname. Bitte nur '{PARAM_CLOUDINESS}' oder '{PARAM_CLOUD_TYPE}' verwenden.")
         return
@@ -71,5 +78,5 @@ def init_weatherstation_data(param_type, target_path):
         if match:
             file = match.string
             url = f"{url_html}{file}"
-            data.append(create_stationdata(url, file, target_path))
+            data.append(_create_stationdata(url, file, target_path))
     return data

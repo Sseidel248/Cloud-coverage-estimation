@@ -17,6 +17,7 @@ Benötigt: colorama
 from colorama import Fore, Style
 
 
+# TODO: Einfügen von DocStrings ("""Beschreibender Text""") unter dem Funktionsname
 def get_colored_msg(text, color):
     return color + text + Style.RESET_ALL
 

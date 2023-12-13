@@ -27,7 +27,8 @@ ICON_D2 = "icon-d2"
 ICON_EU = "icon-eu"
 
 
-def create_modeldata(url, file, target_path):
+# TODO: Einfügen von DocStrings ("""Beschreibender Text""") unter dem Funktionsname
+def _create_modeldata(url, file, target_path):
     if (ICON_D2 not in url) and (ICON_EU not in url):
         return DownloadData("", "", "")
     else:
@@ -35,6 +36,12 @@ def create_modeldata(url, file, target_path):
 
 
 def init_weathermodel_data(model_name, target_path):
+    """
+
+    :param model_name:
+    :param target_path:
+    :return:
+    """
     if model_name != ICON_D2 and model_name != ICON_EU:
         print(f"Ungültiger Modellname. Bitte nur '{ICON_D2}' oder '{ICON_EU}' verwenden.")
         return
@@ -68,6 +75,6 @@ def init_weathermodel_data(model_name, target_path):
             if match:
                 file = match.string
                 url = f"{url_html}{file}"
-                data.append(create_modeldata(url, file, target_path))
+                data.append(_create_modeldata(url, file, target_path))
                 count = count + 1
     return data
