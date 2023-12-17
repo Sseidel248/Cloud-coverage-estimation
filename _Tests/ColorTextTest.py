@@ -1,4 +1,4 @@
-from _My_Lib.ColoredPrint import *
+from Lib.ColoredPrint import *
 
 
 show_hint("Grün mit Präfix")

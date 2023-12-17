@@ -1,8 +1,10 @@
 """
-Dateiname: main.py
-Autor: Sebastian Seidel
-Datum:
-Beschreibung:
+File name:      Main.py
+Author:         Sebastian Seidel
+Date:
+Description:
+
+Required:
 """
 from Cloud_Coverage_Calculation.CloudCoverageData import *
 #from Cloud_Coverage_Calculation.CloudCoverageData import _get_files, _extract_bz2_archives

@@ -1,18 +1,19 @@
 """
-Dateiname: WeatherStationData.py
-Autor: Sebastian Seidel
-Datum: 2023-11-15
-Beschreibung: Das Skript dient dem Erstellen der Downloadobjekten und füllt
-              diese Objekte mit Informationen zu den herunterladbaren Messstationen.
-              Aktuelle Messwerte:
-                Cloudiness
-                Cloud-Type
+File name:      WeatherStationData.py
+Author:         Sebastian Seidel
+Date:           2023-11-15
+Description:    The script is used to create the download objects and fills these objects with information about the
+                downloadable measuring stations.
+                    Current measured values:
+                        Cloudiness
+                        Cloud-Type
 
-              init_weatherstation_data(...) - erstellt die Liste mit den Downloadobjekten
-              der einzelnen Messstationen
+              init_weatherstation_data(...):
+                creates the list with the download objects of the individual measuring stations
 """
 import re
-from _My_Lib.HtmlGrabbler import *
+
+from Lib.HtmlGrabbler import *
 from datetime import datetime
 
 
@@ -28,14 +29,14 @@ TARGET_PATH_CLOUD_TYPE = "WeatherStations/Cloud_Type/"
 PARAM_CLOUDINESS = "cloudiness"
 PARAM_CLOUD_TYPE = "cloud_type"
 
-# Heutiges Jahr und Monat ermitteln
+# Determine current year and month
 today = datetime.now()
 current_year = today.year
 current_month = today.month
 current_year_month = f"{current_year:04d}{current_month:02d}"
 
 
-# TODO: Einfügen von DocStrings ("""Beschreibender Text""") unter dem Funktionsname
+# TODO: Insert DocStrings for public functions ("""Descriptive text""") under the function name
 def _create_stationdata(url, file, target_path):
     if (CLOUDINESS not in url) and (CLOUD_TYPE not in url):
         return DownloadData("", "", "")
@@ -53,13 +54,13 @@ def init_weatherstation_data(param_type, target_path):
     if param_type != PARAM_CLOUDINESS and param_type != PARAM_CLOUD_TYPE:
         print(f"Ungültiger Modellname. Bitte nur '{PARAM_CLOUDINESS}' oder '{PARAM_CLOUD_TYPE}' verwenden.")
         return
-    # Erstelle Zielverzeichnis, wenn es noch nicht existiert
+    # Create target directory if it does not yet exist
     date_now = datetime.now().strftime('%Y%m%d')
     target_path = os.path.join(target_path, date_now)
     if not os.path.exists(target_path):
         os.makedirs(target_path)
 
-    # Erstellen den gewünschten Download-Pfad
+    # Create the required download path
     if param_type == PARAM_CLOUDINESS:
         url_html = f"{MAIN_URL_OBSERV_GERMAN}{CLOUDINESS}{RECENT}"
     else:
@@ -68,12 +69,12 @@ def init_weatherstation_data(param_type, target_path):
     link_texts = get_html_links_strings(url_html)
 
     data = []
-    # Gehe Zeile für Zeile durch die Datei und lese die Stationen aus, die aktuelle Daten haben
+    # Go through the file line by line and read out the stations that have current data
     for link_idx, link_text in enumerate(link_texts):
-        # Ersten beiden Zeilen sind nur parent directory und die Indexdatei
+        # First two lines are only parent directory and the index file
         if link_idx in [0, 1]:
             continue
-        # Suche den Link in dem Zahlen vorkommen = Datum yyyymmdd
+        # Search for the link in which numbers appear = date yyyymmdd
         match = re.search(r'\d+', link_text)
         if match:
             file = match.string

@@ -1,34 +1,33 @@
 """
-Dateiname: CloudCoverageData.py
-Autor: Sebastian Seidel
-Datum:
-Beschreibung:
+File name:      CloudCoverageData.py
+Author:         Sebastian Seidel
+Date:           2023-12-**
+Description:
 """
-from _My_Lib.ColoredPrint import *
-
 import os
 import pathlib
 import bz2
-import xarray as xr
+
+from Lib.ColoredPrint import *
 
 
-# Konstanten der Modelle
+# Constants of the models
 MODEL_ICON_D2 = "icon-d2"
 MODEL_ICON_EU = "icon-eu"
 
-# Konstanten der Fehlerindizes
-ERROR_WRONG_MODEL = "i1"
-ERROR_PATH_NOT_EXIST = "i2"
-ERROR_NO_FILES_FOUND = "i3"
+# Constants of the error indices
+ERROR_WRONG_MODEL = "e1"
+ERROR_PATH_NOT_EXIST = "e2"
+ERROR_NO_FILES_FOUND = "e3"
 
 SUCCESS = "0"
 
-# globale Liste mit den Pfaden zu den Modelldaten
+# Global list with the paths to the model data
 _model_files = []
 
 
-# TODO: Einfügen von DocStrings ("""Beschreibender Text""") unter dem Funktionsname
-# Gibt eine Liste mit absoluten Pfaden zurück in denen die entpackten Dateien liegen
+# TODO: Insert DocStrings for public functions ("""Descriptive text""") under the function name
+# Returns a list of absolute paths in which the unzipped files are located
 def _extract_bz2_archives(bz2_archives):
     # Wenn es keine Archive gibt, dann braucht nichts entpackt werden
     if len(bz2_archives) == 0:
@@ -58,6 +57,16 @@ def _get_files(look_up_path, extension):
     return files
 
 
+def _exist_lat_lon(filename):
+    latlon_exist = False
+    # Öffnen der grib2-datei
+    grib2_file = cfgrib.open_dataset(filename)
+    # überprüfen, ob latitudinale und longitudinale werte vorhanden sind
+    if 'latitude' not in grib2_file.dims and 'longitude' not in grib2_file.dims:
+        latlon_exist = True
+    return latlon_exist
+
+
 def init_cloud_cover_data(path, model_name=MODEL_ICON_D2):
     # Überprüfung, ob ein valider Modellname gewählt wurde. Textvergleich ohne Berücksichtigung der Großschreibung
     if model_name.casefold() != MODEL_ICON_D2.casefold() or model_name.casefold() != MODEL_ICON_D2.casefold():
@@ -77,5 +86,5 @@ def init_cloud_cover_data(path, model_name=MODEL_ICON_D2):
         return ERROR_NO_FILES_FOUND
 
     # TODO: Prüfen ob es die Dateien sind, welche lat lon enthalten
-
+    print(_exist_lat_lon(grib2_files[0]))
     return SUCCESS
