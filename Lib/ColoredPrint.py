@@ -14,19 +14,19 @@ from colorama import Fore, Style
 
 
 # TODO: Insert DocStrings for public functions ("""Descriptive text""") under the function name
-def show_hint(text, only_text=False):
+def show_hint(text: str, only_text: bool = False) -> None:
     if not only_text:
         text = f"Hint: {text}"
     print(Fore.GREEN + text + Style.RESET_ALL)
 
 
-def show_warning(text, only_text=False):
+def show_warning(text: str, only_text: bool = False) -> None:
     if not only_text:
         text = f"Warning: {text}"
     print(Fore.YELLOW + text + Style.RESET_ALL)
 
 
-def show_error(text, only_text=False):
+def show_error(text: str, only_text: bool = False) -> None:
     if not only_text:
         text = f"Error: {text}"
     print(Fore.RED + text + Style.RESET_ALL)

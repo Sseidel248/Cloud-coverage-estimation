@@ -15,6 +15,7 @@ import re
 
 from Lib.HtmlGrabbler import *
 from datetime import datetime
+from typing import List
 
 
 MAIN_URL_OBSERV_GERMAN = "https://opendata.dwd.de/climate_environment/CDC/observations_germany/climate/hourly/"
@@ -37,14 +38,14 @@ current_year_month = f"{current_year:04d}{current_month:02d}"
 
 
 # TODO: Insert DocStrings for public functions ("""Descriptive text""") under the function name
-def _create_stationdata(url, file, target_path):
+def _create_stationdata(url: str, file: str, target_path: str) -> DownloadData:
     if (CLOUDINESS not in url) and (CLOUD_TYPE not in url):
         return DownloadData("", "", "")
     else:
         return DownloadData(url, file, target_path)
 
 
-def init_weatherstation_data(param_type, target_path):
+def init_weatherstation_data(param_type: str, target_path: str) -> List[DownloadData]:
     """
     Hallo Welt
     :param param_type:
@@ -53,7 +54,7 @@ def init_weatherstation_data(param_type, target_path):
     """
     if param_type != PARAM_CLOUDINESS and param_type != PARAM_CLOUD_TYPE:
         print(f"Ungültiger Modellname. Bitte nur '{PARAM_CLOUDINESS}' oder '{PARAM_CLOUD_TYPE}' verwenden.")
-        return
+        return []
     # Create target directory if it does not yet exist
     date_now = datetime.now().strftime('%Y%m%d')
     target_path = os.path.join(target_path, date_now)
@@ -66,7 +67,7 @@ def init_weatherstation_data(param_type, target_path):
     else:
         url_html = f"{MAIN_URL_OBSERV_GERMAN}{CLOUD_TYPE}{RECENT}"
 
-    link_texts = get_html_links_strings(url_html)
+    link_texts = get_html_links_as_list(url_html)
 
     data = []
     # Go through the file line by line and read out the stations that have current data

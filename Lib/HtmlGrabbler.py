@@ -15,17 +15,18 @@ import os
 import requests
 
 from bs4 import BeautifulSoup
+from typing import List
 
 
 # TODO: Einfügen von DocStrings ("""Beschreibender Text""") unter dem Funktionsname
 class DownloadData:
-    def __init__(self, url, file, path):
+    def __init__(self, url: str, file: str, path: str):
         self.url = url
         self.file = file
         self.target_path = os.path.join(path, file)
 
 
-def get_html_links_strings(url_html):
+def get_html_links_as_list(url_html: str) -> List[str]:
     response = requests.get(url_html)
     link_texts = []
     if response.status_code == 200:
@@ -45,7 +46,7 @@ def get_html_links_strings(url_html):
     return link_texts
 
 
-def download_data(download_list):
+def download_data(download_list: List[DownloadData]):
     for data in download_list:
         if data.url == "":
             continue

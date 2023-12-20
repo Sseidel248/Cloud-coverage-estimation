@@ -16,6 +16,7 @@ Description:    The script is used to create the download objects and fills thes
 import re
 
 from Lib.HtmlGrabbler import *
+from typing import List
 
 
 # constants for assembling the URL
@@ -29,14 +30,14 @@ ICON_EU = "icon-eu"
 
 
 # TODO: Insert DocStrings for public functions ("""Descriptive text""") under the function name
-def _create_modeldata(url, file, target_path):
+def _create_modeldata(url: str, file: str, target_path: str) -> DownloadData:
     if (ICON_D2 not in url) and (ICON_EU not in url):
         return DownloadData("", "", "")
     else:
         return DownloadData(url, file, target_path)
 
 
-def init_weathermodel_data(model_name, target_path):
+def init_weathermodel_data(model_name: str, target_path: str) -> List[DownloadData]:
     """
 
     :param model_name:
@@ -45,7 +46,7 @@ def init_weathermodel_data(model_name, target_path):
     """
     if model_name != ICON_D2 and model_name != ICON_EU:
         print(f"Ungültiger Modellname. Bitte nur '{ICON_D2}' oder '{ICON_EU}' verwenden.")
-        return
+        return []
 
     # Create target directory if it does not yet exist
     if not os.path.exists(target_path):
@@ -60,7 +61,7 @@ def init_weathermodel_data(model_name, target_path):
         else:
             url_html = f"{MAIN_URL_ICON_EU}{step}{CLOUD_COVER_TOTAL}"
 
-        link_texts = get_html_links_strings(url_html)
+        link_texts = get_html_links_as_list(url_html)
 
         # only the first three should be downloaded
         count = 0
