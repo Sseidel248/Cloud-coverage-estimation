@@ -15,6 +15,11 @@ _WGRIB2_EXE = f"{os.path.dirname(os.path.abspath(__file__))}\\wgrib2.exe"
 _EXTRACT_FOLDER = ".\\ExtractedData"
 _LAT_LON = "lat-lon"
 NONE_DATETIME = datetime(1970, 1, 1, 0, 0)
+ERROR_FILE_NOT_EXIST = -1
+ERROR_PARAM_NOT_EXIST = -2
+ERROR_UNSTRUCTURED_GRID = -3
+ERROR_LATLON_OUT_OF_RANGE = -4
+
 
 
 class GridType(Enum):
@@ -25,10 +30,10 @@ class GridType(Enum):
 class LatLonData:
     def __init__(self, data: str):
         self.lat_min = -1
-        self.lat_to = -1
+        self.lat_max = -1
         self.delta_by = -1
         self.lon_min = -1
-        self.lon_to = -1
+        self.lon_max = -1
         lat_pattern = r"lat (\d+\.\d+) to (\d+\.\d+) by (\d+\.\d+)"
         lon_pattern = r"lon (\d+\.\d+) to (\d+\.\d+) by (\d+\.\d+)"
         # Search for information
@@ -36,10 +41,10 @@ class LatLonData:
         lon_match = re.search(lon_pattern, data)
         if lat_match and lon_match:
             self.lat_min = convert_in_0_360(float(lat_match.group(1)))
-            self.lat_to = convert_in_0_360(float(lat_match.group(2)))
+            self.lat_max = convert_in_0_360(float(lat_match.group(2)))
             self.delta_by = float(lat_match.group(3))
             self.lon_min = convert_in_0_360(float(lon_match.group(1)))
-            self.lon_to = convert_in_0_360(float(lon_match.group(2)))
+            self.lon_max = convert_in_0_360(float(lon_match.group(2)))
 
 
 class Grib2Data:
@@ -49,20 +54,30 @@ class Grib2Data:
         self.filename = os.path.abspath(filename)
         # Datetime, Parameter and Forecast-Time
         self.fcst_date_time = NONE_DATETIME
-        self.org_date_time, self.param, self.fcst_minutes = _get_datetime_and_param(self.filename)
+        self.org_date_time, self.param, self.fcst_minutes = _get_datetime_param_fcst(self.filename)
         if self.org_date_time != NONE_DATETIME:
             self.fcst_date_time = self.org_date_time + timedelta(hours=self.fcst_minutes // 60)  # [h]
         self.latlon_data, self.grid_type = _get_latlon_details(self.filename)
 
     def exist_latlon(self) -> bool:
         return (self.latlon_data.lat_min >= 0
-                and self.latlon_data.lat_to >= 0
+                and self.latlon_data.lat_max >= 0
                 and self.latlon_data.delta_by >= 0
                 and self.latlon_data.lon_min >= 0
-                and self.latlon_data.lon_to >= 0)
+                and self.latlon_data.lon_max >= 0)
+
+    def lat_in_range(self, lat):
+        norm_lat_min = convert_in_180_180(self.latlon_data.lat_min)
+        norm_lat_max = convert_in_180_180(self.latlon_data.lat_max)
+        return norm_lat_min <= lat <= norm_lat_max
+
+    def lon_in_range(self, lon):
+        norm_lon_min = convert_in_180_180(self.latlon_data.lon_min)
+        norm_lon_max = convert_in_180_180(self.latlon_data.lon_max)
+        return norm_lon_min <= lon <= norm_lon_max
 
 
-def _get_datetime_and_param(file: str) -> [datetime, str, int]:
+def _get_datetime_param_fcst(file: str) -> [datetime, str, int]:
     a_date = NONE_DATETIME
     a_param = ""
     a_forecast = 0  # [min]
@@ -102,12 +117,20 @@ def _get_latlon_details(file: str) -> [LatLonData, GridType]:
 
 
 # TODO: Insert DocStrings for public functions ("""Descriptive text""") under the function name
-def convert_in_0_360(degree: float):
+def convert_in_0_360(degree: float) -> float:
     if -180 <= degree <= 180:
         return degree if degree >= 0 else degree + 360
     else:
         normalized = degree % 360
         return normalized if normalized != 0 else 0
+
+
+def convert_in_180_180(degree: float) -> float:
+    while degree > 180:
+        degree -= 360
+    while degree < -180:
+        degree += 360
+    return degree
 
 
 # Returns a list of absolute file paths.
@@ -142,3 +165,38 @@ def load_folder(path) -> List[Grib2Data]:
     for grib2_file in grib2_files:
         grib2_datas.append(Grib2Data(grib2_file))
     return grib2_datas
+
+
+def get_value_from_file(file: str, param: str, lat: float, lon: float) -> [float, float, float]:
+    val_lon = None
+    val_lat = None
+    file = os.path.abspath(file)
+    if not os.path.exists(file):
+        return ERROR_FILE_NOT_EXIST, val_lat, val_lon
+    grib2data = Grib2Data(file)
+    val, val_lat, val_lon = get_value(grib2data, lat, lon)
+    return val, val_lat, val_lon
+
+
+def get_value(obj: Grib2Data, lat: float, lon: float) -> [float, float, float]:
+    val_lon = None
+    val_lat = None
+    if not os.path.exists(obj.filename):
+        return ERROR_FILE_NOT_EXIST, val_lat, val_lon
+    if obj.grid_type == GridType.UNSTRUCTURED:
+        return ERROR_UNSTRUCTURED_GRID, val_lat, val_lon
+    conv_lat = convert_in_0_360(lat)
+    conv_lon = convert_in_0_360(lon)
+    if not obj.lat_in_range(lat) or not obj.lon_in_range(lon):
+        return ERROR_LATLON_OUT_OF_RANGE, val_lat, val_lon
+    command = f"{_WGRIB2_EXE} {obj.filename} -match {obj.param} -lon {str(conv_lon)} {str(conv_lat)}"
+    result = subprocess.run(command, capture_output=True, text=True)
+    # TODO: regex prüfen!
+    re_search = re.search(r"lon=(\d+\.\d+),lat=(\d+\.\d+),val=(\d+\.?\d+)", result.stdout)
+    if re_search:
+        val_lon = float(re_search.group(1))
+        val_lat = float(re_search.group(2))
+        val = float(re_search.group(3))
+    else:
+        return ERROR_PARAM_NOT_EXIST, val_lat, val_lon
+    return val, val_lat, val_lon

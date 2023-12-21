@@ -14,7 +14,7 @@ from Lib.wgrib2.Grib2Reader import Grib2Data
 MODEL_ICON_D2 = "icon-d2"
 MODEL_ICON_EU = "icon-eu"
 _LAT_LON = "lat-lon"
-_CLOUD_COVER = "TCDC"
+CLOUD_COVER = "TCDC"
 _ICON_EU_LAT_MIN = 29.5
 _ICON_EU_LAT_MAX = 70.5
 _ICON_EU_LON_MIN = 335.5 - 360  # Prime meridian reference
@@ -107,7 +107,7 @@ def init_cloud_cover_data(path: str, model_name: str) -> str:
         if grib2.model_type != model:
             warn_wrong_model.append(_get_warn_str(grib2))
             continue
-        if grib2.grib2data.param != _CLOUD_COVER:
+        if grib2.grib2data.param != CLOUD_COVER:
             warn_wrong_param.append(_get_warn_str(grib2))
             continue
         if not grib2.grib2data.exist_latlon():
