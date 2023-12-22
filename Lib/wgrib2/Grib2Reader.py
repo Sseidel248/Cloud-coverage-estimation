@@ -15,11 +15,10 @@ _WGRIB2_EXE = f"{os.path.dirname(os.path.abspath(__file__))}\\wgrib2.exe"
 _EXTRACT_FOLDER = ".\\ExtractedData"
 _LAT_LON = "lat-lon"
 NONE_DATETIME = datetime(1970, 1, 1, 0, 0)
-ERROR_FILE_NOT_EXIST = -1
-ERROR_PARAM_NOT_EXIST = -2
-ERROR_UNSTRUCTURED_GRID = -3
-ERROR_LATLON_OUT_OF_RANGE = -4
-
+ERROR_FILE_NOT_EXIST = "g1"
+ERROR_PARAM_NOT_EXIST = "g2"
+ERROR_UNSTRUCTURED_GRID = "g3"
+ERROR_LATLON_OUT_OF_RANGE = "g4"
 
 
 class GridType(Enum):
@@ -49,9 +48,9 @@ class LatLonData:
 
 class Grib2Data:
     def __init__(self, filename):
+        self.filename = os.path.abspath(filename)
         if not os.path.exists(filename):
             return
-        self.filename = os.path.abspath(filename)
         # Datetime, Parameter and Forecast-Time
         self.fcst_date_time = NONE_DATETIME
         self.org_date_time, self.param, self.fcst_minutes = _get_datetime_param_fcst(self.filename)
@@ -75,6 +74,26 @@ class Grib2Data:
         norm_lon_min = convert_in_180_180(self.latlon_data.lon_min)
         norm_lon_max = convert_in_180_180(self.latlon_data.lon_max)
         return norm_lon_min <= lon <= norm_lon_max
+
+
+class G2Result:
+    def __init__(self):
+        self.val_lon = -1
+        self.val_lat = -1
+        self.val = -1
+        self.stderr = ""
+
+    def set_stderr(self, err_code: str, err_msg: str):
+        self.stderr = f"{err_code}: {err_msg}"
+
+    def read_values(self, out_str: str):
+        re_search = re.search(r"lon=(\d+\.\d+),lat=(\d+\.\d+),val=(\d+\.?\d+)", out_str)
+        if re_search:
+            self.val_lon = float(re_search.group(1))
+            self.val_lat = float(re_search.group(2))
+            self.val = float(re_search.group(3))
+        else:
+            self.set_stderr(ERROR_PARAM_NOT_EXIST, "Param not exist")
 
 
 def _get_datetime_param_fcst(file: str) -> [datetime, str, int]:
@@ -167,36 +186,31 @@ def load_folder(path) -> List[Grib2Data]:
     return grib2_datas
 
 
-def get_value_from_file(file: str, param: str, lat: float, lon: float) -> [float, float, float]:
-    val_lon = None
-    val_lat = None
+def get_value_from_file(file: str, lat: float, lon: float) -> G2Result:
+    g2r = G2Result()
     file = os.path.abspath(file)
     if not os.path.exists(file):
-        return ERROR_FILE_NOT_EXIST, val_lat, val_lon
+        g2r.set_stderr(ERROR_FILE_NOT_EXIST, "File not exist")
+        return g2r
     grib2data = Grib2Data(file)
-    val, val_lat, val_lon = get_value(grib2data, lat, lon)
-    return val, val_lat, val_lon
+    g2r = get_value(grib2data, lat, lon)
+    return g2r
 
 
-def get_value(obj: Grib2Data, lat: float, lon: float) -> [float, float, float]:
-    val_lon = None
-    val_lat = None
+def get_value(obj: Grib2Data, lat: float, lon: float) -> G2Result:
+    g2r = G2Result()
     if not os.path.exists(obj.filename):
-        return ERROR_FILE_NOT_EXIST, val_lat, val_lon
+        g2r.set_stderr(ERROR_FILE_NOT_EXIST, "File not exist")
+        return g2r
     if obj.grid_type == GridType.UNSTRUCTURED:
-        return ERROR_UNSTRUCTURED_GRID, val_lat, val_lon
+        g2r.set_stderr(ERROR_UNSTRUCTURED_GRID, "Unstructured Grid")
+        return g2r
     conv_lat = convert_in_0_360(lat)
     conv_lon = convert_in_0_360(lon)
     if not obj.lat_in_range(lat) or not obj.lon_in_range(lon):
-        return ERROR_LATLON_OUT_OF_RANGE, val_lat, val_lon
+        g2r.set_stderr(ERROR_LATLON_OUT_OF_RANGE, "Lat Lon out of Range")
+        return g2r
     command = f"{_WGRIB2_EXE} {obj.filename} -match {obj.param} -lon {str(conv_lon)} {str(conv_lat)}"
     result = subprocess.run(command, capture_output=True, text=True)
-    # TODO: regex prüfen!
-    re_search = re.search(r"lon=(\d+\.\d+),lat=(\d+\.\d+),val=(\d+\.?\d+)", result.stdout)
-    if re_search:
-        val_lon = float(re_search.group(1))
-        val_lat = float(re_search.group(2))
-        val = float(re_search.group(3))
-    else:
-        return ERROR_PARAM_NOT_EXIST, val_lat, val_lon
-    return val, val_lat, val_lon
+    g2r.read_values(result.stdout)
+    return g2r
