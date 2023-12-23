@@ -60,4 +60,3 @@ if download_measuring_station:
     download_urls_stations_cloud_type = init_weatherstation_data(PARAM_CLOUD_TYPE, TARGET_PATH_CLOUD_TYPE)
     download_data(download_urls_stations_cloud_type)
     show_number_of_files(len(download_urls_stations_cloud_type))
-

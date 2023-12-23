@@ -45,7 +45,7 @@ def init_weathermodel_data(model_name: str, target_path: str) -> List[DownloadDa
     :return:
     """
     if model_name != ICON_D2 and model_name != ICON_EU:
-        print(f"Ungültiger Modellname. Bitte nur '{ICON_D2}' oder '{ICON_EU}' verwenden.")
+        print(f"Invalid model name. Please only use '{ICON_D2}' or '{ICON_EU}'.")
         return []
 
     # Create target directory if it does not yet exist

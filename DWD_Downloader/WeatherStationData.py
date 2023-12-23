@@ -53,7 +53,7 @@ def init_weatherstation_data(param_type: str, target_path: str) -> List[Download
     :return:
     """
     if param_type != PARAM_CLOUDINESS and param_type != PARAM_CLOUD_TYPE:
-        print(f"Ungültiger Modellname. Bitte nur '{PARAM_CLOUDINESS}' oder '{PARAM_CLOUD_TYPE}' verwenden.")
+        print(f"Invalid model name. Please only use '{PARAM_CLOUDINESS}' or '{PARAM_CLOUD_TYPE}'.")
         return []
     # Create target directory if it does not yet exist
     date_now = datetime.now().strftime('%Y%m%d')
@@ -73,10 +73,10 @@ def init_weatherstation_data(param_type: str, target_path: str) -> List[Download
     # Go through the file line by line and read out the stations that have current data
     for link_idx, link_text in enumerate(link_texts):
         # First two lines are only parent directory and the index file
-        if link_idx in [0, 1]:
+        if link_idx in [0]:
             continue
-        # Search for the link in which numbers appear = date yyyymmdd
-        match = re.search(r'\d+', link_text)
+        # Search for the link containing numbers and "N_"
+        match = re.search(r'N_|\d+', link_text)
         if match:
             file = match.string
             url = f"{url_html}{file}"
