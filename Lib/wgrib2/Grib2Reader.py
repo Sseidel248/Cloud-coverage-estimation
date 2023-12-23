@@ -49,10 +49,15 @@ class LatLonData:
 class Grib2Data:
     def __init__(self, filename):
         self.filename = os.path.abspath(filename)
+        self.fcst_date_time = NONE_DATETIME
+        self.org_date_time = NONE_DATETIME
+        self.param = ""
+        self.fcst_minutes = -1
+        self.grid_type = GridType.UNSTRUCTURED
+        self.latlon_data = None
         if not os.path.exists(filename):
             return
         # Datetime, Parameter and Forecast-Time
-        self.fcst_date_time = NONE_DATETIME
         self.org_date_time, self.param, self.fcst_minutes = _get_datetime_param_fcst(self.filename)
         if self.org_date_time != NONE_DATETIME:
             self.fcst_date_time = self.org_date_time + timedelta(hours=self.fcst_minutes // 60)  # [h]
