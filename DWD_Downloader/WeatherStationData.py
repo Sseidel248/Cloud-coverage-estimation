@@ -76,7 +76,7 @@ def init_weatherstation_data(param_type: str, target_path: str) -> List[Download
         if link_idx in [0]:
             continue
         # Search for the link containing numbers and "N_"
-        match = re.search(r'N_|\d+', link_text)
+        match = re.search(r'N_|CS_|\d+', link_text)
         if match:
             file = match.string
             url = f"{url_html}{file}"
