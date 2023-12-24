@@ -1,3 +1,11 @@
+"""
+File name:      Grib2Reader.py
+Author:         Sebastian Seidel
+Date:           2023-12-24
+Description:    Used to read Grib2 files.
+                Can also unpack BZ2 archives containing Grib2 files.
+                (like the DWD)
+"""
 import os
 import subprocess
 import pathlib
@@ -8,17 +16,13 @@ from typing import List
 from pathlib import Path
 from enum import Enum
 from datetime import datetime, timedelta
+from Lib.ErrorWarningConsts import *
 
-# Constants of the error indices
-# start Main.py in Cloud_Coverage_Calculation
+# start MainDownloader.py in Cloud_Coverage_Calculation
 _WGRIB2_EXE = f"{os.path.dirname(os.path.abspath(__file__))}\\wgrib2.exe"
-_EXTRACT_FOLDER = ".\\ExtractedData"
+_EXTRACT_FOLDER = ".\\extracted_model_files"
 _LAT_LON = "lat-lon"
 NONE_DATETIME = datetime(1970, 1, 1, 0, 0)
-ERROR_FILE_NOT_EXIST = "g1"
-ERROR_PARAM_NOT_EXIST = "g2"
-ERROR_UNSTRUCTURED_GRID = "g3"
-ERROR_LATLON_OUT_OF_RANGE = "g4"
 
 
 class GridType(Enum):
@@ -212,8 +216,11 @@ def get_value(obj: Grib2Data, lat: float, lon: float) -> G2Result:
         return g2r
     conv_lat = convert_in_0_360(lat)
     conv_lon = convert_in_0_360(lon)
-    if not obj.lat_in_range(lat) or not obj.lon_in_range(lon):
-        g2r.set_stderr(ERROR_LATLON_OUT_OF_RANGE, "Lat Lon out of Range")
+    if not obj.lat_in_range(lat):
+        g2r.set_stderr(ERROR_LAT_OUT_OF_RANGE, "Lat out of Range")
+        return g2r
+    if not obj.lon_in_range(lon):
+        g2r.set_stderr(ERROR_LON_OUT_OF_RANGE, "Lon out of Range")
         return g2r
     command = f"{_WGRIB2_EXE} {obj.filename} -match {obj.param} -lon {str(conv_lon)} {str(conv_lat)}"
     result = subprocess.run(command, capture_output=True, text=True)

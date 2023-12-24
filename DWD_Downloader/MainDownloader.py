@@ -1,5 +1,5 @@
 """
-File name:      Main.py
+File name:      MainDownloader.py
 Author:         Sebastian Seidel
 Date:           2023-11-15
 Description:    Downloads data from measuring stations and weather models.

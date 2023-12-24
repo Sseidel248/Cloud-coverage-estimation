@@ -4,16 +4,16 @@ Author:         Sebastian Seidel
 Date:           2023-12-**
 Description:
 """
-from enum import Enum
-from typing import List
 from Lib.ColoredPrint import *
 from Lib.wgrib2.Grib2Reader import *
 from Lib.wgrib2.Grib2Reader import Grib2Data
+from Lib.ErrorWarningConsts import *
 
 # TODO: Modell-Parameter in separate *.py dateien auslagern
 # Constants of the models
 MODEL_ICON_D2 = "icon-d2"
 MODEL_ICON_EU = "icon-eu"
+MODEL_UNSTRUCTURED = "unstructured"
 _LAT_LON = "lat-lon"
 CLOUD_COVER = "TCDC"
 _ICON_EU_LAT_MIN = 29.5
@@ -26,16 +26,6 @@ _ICON_D2_LAT_MAX = 58.08
 _ICON_D2_LON_MIN = 356.06 - 360  # Prime meridian reference
 _ICON_D2_LON_MAX = 20.34
 _ICON_D2_LAT_LON_DELTA = 0.02
-
-# Constants of the error indices
-ERROR_WRONG_MODEL = "e11"
-ERROR_PATH_NOT_EXIST = "e12"
-ERROR_NO_FILES_FOUND = "e13"
-ERROR_GRIB2_FILES_MISSING_INFO = "e14"
-ERROR_DATETIME_NOT_IN_RANGE = "e21"
-ERROR_LAT_NOT_IN_RANGE = "e22"
-ERROR_LON_NOT_IN_RANGE = "e23"
-ERROR_SOME_FILES_ARE_INVALID = "e100"
 
 
 class ModelType(Enum):
@@ -54,7 +44,7 @@ class Grib2:
 
     def get_info_str(self) -> str:
         if self.model_type == ModelType.UNKNOWN:
-            model = 'Unstructured'
+            model = MODEL_UNSTRUCTURED
         elif self.model_type == ModelType.ICON_D2:
             model = MODEL_ICON_D2
         else:
@@ -81,11 +71,11 @@ class Grib2Warning:
 
 class Grib2Results:
     def __init__(self, model: str, path: str):
-        self.model = model.casefold()
-        if self.model != MODEL_ICON_D2.casefold() or self.model != MODEL_ICON_D2.casefold():
+        self.model = model.lower()
+        if self.model != MODEL_ICON_D2.lower() or self.model != MODEL_ICON_D2.lower():
             self.model_type = ModelType.UNKNOWN
         else:
-            self.model_type = ModelType.ICON_D2 if self.model == MODEL_ICON_D2.casefold() else ModelType.ICON_EU
+            self.model_type = ModelType.ICON_D2 if self.model == MODEL_ICON_D2.lower() else ModelType.ICON_EU
         self.path = os.path.abspath(path)
         self.grib2_files = {}
         self.min_datetime = NONE_DATETIME
@@ -98,7 +88,7 @@ class Grib2Results:
         self.none_datetime_files = Grib2Warning("File has no datetime")
         self.too_far_forecast_files = Grib2Warning("Forecast is longer then 120 min")
 
-    def add(self, data: Grib2):
+    def add(self, data: Grib2) -> bool:
         invalid = False
         if data.model_type != self.model_type:
             self.wrong_model_files.add(data)
@@ -117,7 +107,7 @@ class Grib2Results:
             self.too_far_forecast_files.add(data)
             invalid = True
         if invalid:
-            return
+            return False
         # if Obj is ok, then add it
         if self.grib2_files.get(data.grib2data.fcst_date_time) is None:
             self.grib2_files[data.grib2data.fcst_date_time] = data
@@ -125,6 +115,7 @@ class Grib2Results:
                 self.min_datetime = data.grib2data.fcst_date_time
             if (self.max_datetime is None) or (data.grib2data.fcst_date_time > self.max_datetime):
                 self.max_datetime = data.grib2data.fcst_date_time
+            return True
 
     def show_all_invalid_files(self):
         self.wrong_model_files.show_warnings()
@@ -159,10 +150,10 @@ class Grib2Results:
             show_error(f"{ERROR_DATETIME_NOT_IN_RANGE}: Datetime not in Range")
             return -1
         if not self.lat_in_range(lat):
-            show_error(f"{ERROR_LAT_NOT_IN_RANGE}: Lat out of Range")
+            show_error(f"{ERROR_LAT_OUT_OF_RANGE}: Lat out of Range")
             return -1
         if not self.lon_in_range(lon):
-            show_error(f"{ERROR_LON_NOT_IN_RANGE}: Lon out of Range")
+            show_error(f"{ERROR_LON_OUT_OF_RANGE}: Lon out of Range")
             return -1
         rounded_date_time = _round_to_nearest_hour(date_time)
         closest_date_time = min(self.grib2_files.keys(), key=lambda x: abs(x - rounded_date_time))
@@ -187,7 +178,7 @@ def _hours_difference(datetime1: datetime, datetime2: datetime) -> float:
 
 def _get_warn_str(data: Grib2) -> str:
     if data.model_type == ModelType.UNKNOWN:
-        model = 'Unstructured'
+        model = MODEL_UNSTRUCTURED
     elif data.model_type == ModelType.ICON_D2:
         model = MODEL_ICON_D2
     else:
@@ -202,12 +193,13 @@ def init_cloud_cover_data(path: str, model_name: str) -> Grib2Results:
     g2res = Grib2Results(model_name, path)
     # Check if a valid model name has been selected.
     # Text comparison without consideration of capitalization
-    if model_name.casefold() != MODEL_ICON_D2.casefold() or model_name.casefold() != MODEL_ICON_D2.casefold():
+    if model_name.lower() != MODEL_ICON_D2.lower() or model_name.lower() != MODEL_ICON_D2.lower():
         show_error(f"Please only use 'icon-d2' or 'icon-eu'. Your <model_name>: '{model_name}'.")
         g2res.stderr = f"{ERROR_WRONG_MODEL}: Wrong model"
         return g2res
 
     # Check if path exist
+    path = os.path.abspath(path)
     if not os.path.exists(path):
         show_error(f"The path you have entered does not exist. Your <path>: '{path}'")
         g2res.stderr = f"{ERROR_PATH_NOT_EXIST}: Path does not exist"
@@ -232,10 +224,10 @@ def init_cloud_cover_data(path: str, model_name: str) -> Grib2Results:
         g2res.add(grib2)
     if len(g2res.grib2_files) == 0:
         show_error("None of the files found have the necessary information.")
-        g2res.stderr = f"{ERROR_GRIB2_FILES_MISSING_INFO}: There are no files with relevant data"
+        g2res.stderr = f"{ERROR_GRIB2_FILES_INCOMPLETE}: There are no files with relevant data"
         return g2res
     if len(g2res.grib2_files) != len(grib2_list):
-        g2res.stderr = (f"{ERROR_SOME_FILES_ARE_INVALID}: Some files are invalid, please check here: "
+        g2res.stderr = (f"{WARNING_SOME_FILES_ARE_INVALID}: Some files are invalid, please check here: "
                         f"[wrong_model_files, wrong_param_files, no_latlon_files, none_datetime_files, "
                         f"too_far_forecast_files].")
     return g2res

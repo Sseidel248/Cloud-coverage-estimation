@@ -1,5 +1,5 @@
 """
-File name:      Main.py
+File name:      Example_ICON_D2_CloudCover.py
 Author:         Sebastian Seidel
 Date:
 Description:
@@ -15,6 +15,6 @@ if len(res.grib2_files) > 0:
     print(f"Number of valid Files: {str(len(res.grib2_files))}")
     res.show_all_invalid_files()
     date_time = datetime(2023, 12, 11, 12, 34)
-    lat = 52.659
-    lon = 13.533
+    lat = 52.0613
+    lon = 13.4997
     print(f"Cloud Cover at {lat}, {lon} [lat, lon] for {str(date_time)}: {res.get_cloud_cover(lat, lon, date_time)}%")
