@@ -14,12 +14,13 @@ Description:    The script is used to create the download objects and fills thes
                 creates the list with the download objects of the individual weather models
 """
 import re
+import os
+import Lib.HtmlGrabbler as htmlGrab
 
-from Lib.HtmlGrabbler import *
 from typing import List
 
 
-# constants for assembling the URL
+# local consts
 TARGET_PATH_ICON_D2 = "WeatherData/ICON_D2/"
 TARGET_PATH_ICON_EU = "WeatherData/ICON_EU/"
 MAIN_URL_ICON_D2 = "https://opendata.dwd.de/weather/nwp/icon-d2/grib/"
@@ -30,14 +31,14 @@ ICON_EU = "icon-eu"
 
 
 # TODO: Insert DocStrings for public functions ("""Descriptive text""") under the function name
-def _create_modeldata(url: str, file: str, target_path: str) -> DownloadData:
+def _create_modeldata(url: str, file: str, target_path: str) -> htmlGrab.DownloadData:
     if (ICON_D2 not in url) and (ICON_EU not in url):
-        return DownloadData("", "", "")
+        return htmlGrab.DownloadData("", "", "")
     else:
-        return DownloadData(url, file, target_path)
+        return htmlGrab.DownloadData(url, file, target_path)
 
 
-def init_weathermodel_data(model_name: str, target_path: str) -> List[DownloadData]:
+def init_weathermodel_data(model_name: str, target_path: str) -> List[htmlGrab.DownloadData]:
     """
 
     :param model_name:
@@ -61,7 +62,7 @@ def init_weathermodel_data(model_name: str, target_path: str) -> List[DownloadDa
         else:
             url_html = f"{MAIN_URL_ICON_EU}{step}{CLOUD_COVER_TOTAL}"
 
-        link_texts = get_html_links_as_list(url_html)
+        link_texts = htmlGrab.get_html_links_as_list(url_html)
 
         # only the first three should be downloaded
         count = 0

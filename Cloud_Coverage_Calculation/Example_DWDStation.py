@@ -1,10 +1,8 @@
 """
 File name:      Example_ICON_D2_CloudCover.py
 Author:         Sebastian Seidel
-Date:
+Date:           2023.12.24
 Description:
-
-Required:
 """
 from Lib.DWDStationReader import *
 

@@ -12,12 +12,13 @@ Description:    The script is used to create the download objects and fills thes
                 creates the list with the download objects of the individual measuring stations
 """
 import re
+import os
+import Lib.HtmlGrabbler as htmlGrab
 
-from Lib.HtmlGrabbler import *
 from datetime import datetime
 from typing import List
 
-
+# local consts
 MAIN_URL_OBSERV_GERMAN = "https://opendata.dwd.de/climate_environment/CDC/observations_germany/climate/hourly/"
 CLOUDINESS = "cloudiness/"
 CLOUD_TYPE = "cloud_type/"
@@ -38,14 +39,14 @@ current_year_month = f"{current_year:04d}{current_month:02d}"
 
 
 # TODO: Insert DocStrings for public functions ("""Descriptive text""") under the function name
-def _create_stationdata(url: str, file: str, target_path: str) -> DownloadData:
+def _create_stationdata(url: str, file: str, target_path: str) -> htmlGrab.DownloadData:
     if (CLOUDINESS not in url) and (CLOUD_TYPE not in url):
-        return DownloadData("", "", "")
+        return htmlGrab.DownloadData("", "", "")
     else:
-        return DownloadData(url, file, target_path)
+        return htmlGrab.DownloadData(url, file, target_path)
 
 
-def init_weatherstation_data(param_type: str, target_path: str) -> List[DownloadData]:
+def init_weatherstation_data(param_type: str, target_path: str) -> List[htmlGrab.DownloadData]:
     """
     Hallo Welt
     :param param_type:
@@ -67,7 +68,7 @@ def init_weatherstation_data(param_type: str, target_path: str) -> List[Download
     else:
         url_html = f"{MAIN_URL_OBSERV_GERMAN}{CLOUD_TYPE}{RECENT}"
 
-    link_texts = get_html_links_as_list(url_html)
+    link_texts = htmlGrab.get_html_links_as_list(url_html)
 
     data = []
     # Go through the file line by line and read out the stations that have current data

@@ -1,18 +1,16 @@
 """
 File name:      Example_ICON_D2_CloudCover.py
 Author:         Sebastian Seidel
-Date:
+Date:           2023.12.22
 Description:
-
-Required:
 """
 from datetime import datetime
-from Cloud_Coverage_Calculation.CloudCoverageData import init_cloud_cover_data, MODEL_ICON_D2
+from Lib.CloudCoverageReader import init_cloud_cover_data, MODEL_ICON_D2
 
 res = init_cloud_cover_data("..\\DWD_Downloader\\WeatherData\\ICON_D2", MODEL_ICON_D2)
 print(f"Errorcode: {res.stderr}")
-if len(res.grib2_files) > 0:
-    print(f"Number of valid Files: {str(len(res.grib2_files))}")
+if len(res.cloud_cover_files) > 0:
+    print(f"Number of valid Files: {str(len(res.cloud_cover_files))}")
     res.show_all_invalid_files()
     date_time = datetime(2023, 12, 11, 12, 34)
     lat = 52.0613
