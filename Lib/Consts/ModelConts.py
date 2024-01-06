@@ -1,3 +1,10 @@
+"""
+File name:      ModelConsts.py
+Author:         Sebastian Seidel
+Date:           2024-**-**
+Description:
+"""
+
 # Constants of the models
 MODEL_ICON_D2 = "icon-d2"
 MODEL_ICON_EU = "icon-eu"

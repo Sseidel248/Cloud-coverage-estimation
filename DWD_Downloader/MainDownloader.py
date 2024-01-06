@@ -34,7 +34,7 @@ def show_number_of_files(count):
 
 
 # Switch on/off whether the weather station data should be downloaded
-download_measuring_station = True
+download_measuring_station = False
 
 # Download Icon-d2 data
 show_start_message("ICON-D2 CLCT Data")

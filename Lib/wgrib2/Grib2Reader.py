@@ -8,13 +8,13 @@ Description:    Used to read Grib2 files.
 """
 import os
 import subprocess
-import pathlib
 import bz2
 import re
-import Lib.ErrorWarningConsts as ewConst
-import Lib.GeneralConts as gConst
-
-from typing import List
+import Lib.Consts.ErrorWarningConsts as ewConst
+import Lib.Consts.GeneralConts as gConst
+import Lib.GeneralFunctions as gFunc
+import Lib.ColoredPrint as cp
+from typing import List, Tuple
 from pathlib import Path
 from enum import Enum
 from datetime import datetime, timedelta
@@ -22,7 +22,6 @@ from datetime import datetime, timedelta
 
 # local Consts
 _WGRIB2_EXE = f"{os.path.dirname(os.path.abspath(__file__))}\\wgrib2.exe"
-_EXTRACT_FOLDER = ".\\extracted_model_files"
 _LAT_LON = "lat-lon"
 
 
@@ -59,7 +58,7 @@ class Grib2Data:
         self.param = ""
         self.fcst_minutes = -1
         self.grid_type = GridType.UNSTRUCTURED
-        self.latlon_data = None
+        self.latlon_data = LatLonData("")
         if os.path.exists(filename):
             # Datetime, Parameter and Forecast-Time
             self.org_date_time, self.param, self.fcst_minutes = _get_datetime_param_fcst(self.filename)
@@ -75,11 +74,13 @@ class Grib2Data:
                 and self.latlon_data.lon_max >= 0)
 
     def lat_in_range(self, lat):
+        lat = convert_in_180_180(lat)
         norm_lat_min = convert_in_180_180(self.latlon_data.lat_min)
         norm_lat_max = convert_in_180_180(self.latlon_data.lat_max)
         return in_range(lat, norm_lat_min, norm_lat_max)
 
     def lon_in_range(self, lon):
+        lon = convert_in_180_180(lon)
         norm_lon_min = convert_in_180_180(self.latlon_data.lon_min)
         norm_lon_max = convert_in_180_180(self.latlon_data.lon_max)
         return in_range(lon, norm_lon_min, norm_lon_max)
@@ -108,7 +109,7 @@ class Grib2Result:
 def _get_latlon_details(file: str) -> [LatLonData, GridType]:
     gtype = GridType.UNSTRUCTURED
     if not os.path.exists(file):
-        return [None, gtype]
+        return [LatLonData(""), gtype]
     file = os.path.abspath(file)
     command = f"{_WGRIB2_EXE} {file} -grid"
     result = subprocess.run(command, capture_output=True, text=True)
@@ -120,50 +121,58 @@ def _get_latlon_details(file: str) -> [LatLonData, GridType]:
     return latlon_data, gtype
 
 
-# Returns a list of absolute file paths.
-def _get_files(look_up_path: str, extension: str) -> List[Path]:
-    files = list(pathlib.Path(look_up_path).glob(f"**/*{extension}"))
-    return files
-
-
-def _extract_bz2_archives(bz2_archives: List):
+def _extract_bz2_archives(bz2_archives: List[Path]):
     # If there are no archives, then nothing needs to be unpacked
     if len(bz2_archives) == 0:
         return
     # Loop through each *.bz2 archive and unpack it
-    if not os.path.exists(_EXTRACT_FOLDER):
-        os.makedirs(_EXTRACT_FOLDER)
     for archive in bz2_archives:
+        directory = os.path.dirname(archive)
         filename_body = os.path.splitext(os.path.basename(archive))[0]
-        extracted_path = os.path.join(_EXTRACT_FOLDER, filename_body)
-        with open(extracted_path, "wb") as extracted_file, bz2.BZ2File(archive, "rb") as archiv:
-            for content in archiv:
-                extracted_file.write(content)
+        extracted_path = os.path.join(directory, filename_body)
+        if not os.path.exists(extracted_path):
+            with open(extracted_path, "wb") as extracted_file, bz2.BZ2File(archive, "rb") as archiv:
+                for content in archiv:
+                    extracted_file.write(content)
 
 
 # TODO: Insert DocStrings for public functions ("""Descriptive text""") under the function name
 def _get_datetime_param_fcst(file: str) -> [datetime, str, int]:
     a_date = gConst.NONE_DATETIME
     a_param = ""
-    a_forecast = 0  # [min]
+    a_forecast = -1  # [min]
     if not os.path.exists(file):
-        return [a_date, a_param]
+        return [a_date, a_param, a_forecast]
     file = os.path.abspath(file)
     command = f"{_WGRIB2_EXE} {file}"
     result = subprocess.run(command, capture_output=True, text=True)
     # check datetime
     date_match = re.search(r"d=(\d{10})", result.stdout)
-    a_date = None
     if date_match:
         a_date = datetime.strptime(date_match.group(1), "%Y%m%d%H")
         fcst_match = re.search(r"(\d+)\s+min\s+fcst", result.stdout)
         if fcst_match:
             a_forecast = int(fcst_match.group(1))  # [min]
+        else:
+            a_forecast = 0
     # check param value
     parts = result.stdout.split(":")
     if len(parts) >= 3:
         a_param = parts[3]
     return a_date, a_param, a_forecast
+
+
+def _read_values(out_str: str) -> List[Grib2Result]:
+    pattern = r"lon=(\d+\.\d+),lat=(\d+\.\d+),val=(\d+\.?\d+)"
+    matches = re.findall(pattern, out_str)
+    g2_results = []
+    for match in matches:
+        g2 = Grib2Result()
+        g2.val_lon = float(match[0])
+        g2.val_lat = float(match[1])
+        g2.val = float(match[2])
+        g2_results.append(g2)
+    return g2_results
 
 
 def in_range(value: float | datetime, min_val: float | datetime, max_value: float | datetime) -> bool:
@@ -186,17 +195,15 @@ def convert_in_180_180(degree: float) -> float:
     return degree
 
 
-def load_folder(path) -> List[Grib2Data]:
+def load_folder(path) -> List[Path]:
     # Loop through each *.bz2 archive and unpack it
-    grib2_datas = []
+    grib2_files = []
     if not os.path.exists(path):
-        return grib2_datas
-    bz2_archives = _get_files(path, ".bz2")
+        return grib2_files
+    bz2_archives = gFunc.get_files(path, ".bz2")
     _extract_bz2_archives(bz2_archives)
-    grib2_files = _get_files(_EXTRACT_FOLDER, ".grib2")
-    for grib2_file in grib2_files:
-        grib2_datas.append(Grib2Data(grib2_file))
-    return grib2_datas
+    grib2_files = gFunc.get_files(path, ".grib2")
+    return grib2_files
 
 
 def get_value_from_file(file: str, lat: float, lon: float) -> Grib2Result:
@@ -230,3 +237,27 @@ def get_value(obj: Grib2Data, lat: float, lon: float) -> Grib2Result:
     result = subprocess.run(command, capture_output=True, text=True)
     g2r.read_values(result.stdout)
     return g2r
+
+
+def get_multiple_values(obj: Grib2Data, coords: List[Tuple[float, float]]) -> List[Grib2Result]:
+    if not os.path.exists(obj.filename):
+        cp.show_error(f"{ewConst.ERROR_FILE_NOT_EXIST}: File not exist '{obj.filename}'")
+        return []
+    if obj.grid_type == GridType.UNSTRUCTURED:
+        cp.show_error(f"{ewConst.ERROR_UNSTRUCTURED_GRID}: Unstructured Grid in '{obj.filename}'")
+        return []
+    # get multiple value with wgrib2.exe
+    command = f"{_WGRIB2_EXE} {obj.filename} -match {obj.param}"
+    for lat, lon in coords:
+        conv_lat = convert_in_0_360(lat)
+        conv_lon = convert_in_0_360(lon)
+        if not obj.lat_in_range(lat):
+            cp.show_error(f"{ewConst.ERROR_UNSTRUCTURED_GRID}: Lat out of Range 'value={lat}'")
+            continue
+        if not obj.lon_in_range(lon):
+            cp.show_error(f"{ewConst.ERROR_UNSTRUCTURED_GRID}: Lon out of Range 'value={lon}'")
+            continue
+        command += f" -lon {conv_lon} {conv_lat}"
+    result = subprocess.run(command, capture_output=True, text=True)
+    return _read_values(result.stdout)
+

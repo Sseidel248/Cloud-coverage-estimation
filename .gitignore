@@ -161,3 +161,5 @@ cython_debug/
 .idea/
 /Cloud_Coverage_Calculation/extracted_model_files
 extracted_station_files
+*.csv
+*.xlsx

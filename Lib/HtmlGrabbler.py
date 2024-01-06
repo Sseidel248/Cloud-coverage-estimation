@@ -1,5 +1,5 @@
 """
-File name:      ColoredPrint.py
+File name:      HtmlGrabbler.py
 Author:         Sebastian Seidel
 Date:           2023-11-19
 Description:    The script is used to read an HTML page. Lists of DownloadData objects are processed in sequence and

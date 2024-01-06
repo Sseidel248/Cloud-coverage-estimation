@@ -1,18 +1,22 @@
+"""
+File name:      DWDStationReader.py
+Author:         Sebastian Seidel
+Date:           2024-**-**
+Description:
+"""
 import os
 import zipfile
-import pathlib
 import re
 
-import Lib.ErrorWarningConsts as ewConst
+import Lib.Consts.ErrorWarningConsts as ewConst
 import Lib.ColoredPrint as clPrint
-import Lib.GeneralConts as gConst
-from datetime import datetime, timedelta
-from pathlib import Path
-from typing import List
+import Lib.Consts.GeneralConts as gConst
+import Lib.GeneralFunctions as gFunc
+from datetime import datetime
+from typing import List, Tuple
 
 
 # local consts
-_EXTRACTION_FOLDER = ".\\extracted_station_files\\"
 _INIT_FILE_MARKER = "Stundenwerte_Beschreibung_Stationen"
 _DATA_FILE_MARKER = "produkt_"
 
@@ -20,9 +24,8 @@ _DATA_FILE_MARKER = "produkt_"
 class DWDStation:
     def __init__(self, datastr: str):
         self.filename = ""
-        self.data = {}
         self.loaded = False
-        match = re.search(r"(\d+) (\d+) (\d+)\s+(\d+)\s+([\d.]+)\s+([\d.]+)\s+(.*)", datastr)
+        match = re.search(r"(\d+) (\d+) (\d+)\s+(-?\d+)\s+([\d.]+)\s+([\d.]+)\s+(.*)", datastr)
         if match:
             self.id = int(match.group(1))
             self.date_from = datetime.strptime(match.group(2), "%Y%m%d")
@@ -41,25 +44,35 @@ class DWDStation:
     def load_data(self, filename: str):
         self.filename = filename
         if os.path.exists(filename):
+            self.loaded = True
             with open(filename, 'r') as content:
                 text = content.read()
                 lines = text.strip().split('\n')
                 # 1. Line Header
-                for line in lines[1:]:
-                    data = line.split(";")
-                    date_time = datetime.strptime(data[1].strip(), "%Y%m%d%H")
-                    value = data[4].strip()
-                    self.data[date_time] = value.strip()
-            self.loaded = len(self.data.keys()) > 0
+                if len(lines) > 1:
+                    self.date_from = datetime.strptime(lines[1].split(";")[1], "%Y%m%d%H")
+                    self.date_to = datetime.strptime(lines[-1].split(";")[1], "%Y%m%d%H")
 
     def get_value(self, date_time: datetime) -> float:
-        rounded_datetime = _round_to_nearest_hour(date_time)
-        if not self.loaded or self.data.get(rounded_datetime) is None:
-            return -1
-        return float(self.data[rounded_datetime])/8*100  # [%]
+        rounded_datetime = gFunc.round_to_nearest_hour(date_time)
+        datetime_str = rounded_datetime.strftime("%Y%m%d%H")
+        if os.path.exists(self.filename):
+            with open(self.filename, 'r') as content:
+                for line in content:
+                    if datetime_str in line:
+                        parts = line.split(';')  # Teilt die Zeile an jedem Semikolon
+                        if len(parts) > 4:  # Stellen Sie sicher, dass genügend Elemente vorhanden sind
+                            value = float(parts[4].strip())  # Entfernen Sie Whitespace um den Wert
+                            if value == -1:
+                                return -1
+                            return value / 8 * 100
+        return -1
 
     def get_info_str(self) -> str:
-        return f"Id: {self.id} ,Lat: {self.lat}, Lon: {self.lon}"
+        return f"Id: {self.id} ,Lat: {self.lat} ,Lon: {self.lon} ,File: {self.filename} ,Loaded: {self.loaded}"
+
+    def datetime_in_range(self, date_time: datetime) -> bool:
+        return self.date_from <= date_time <= self.date_to
 
 
 class InvalidStations:
@@ -76,15 +89,14 @@ class InvalidStations:
     def add(self, data: DWDStation):
         self.unloaded_dwdstations.append(data)
 
-    def remove(self, data: DWDStation):
+    def remove(self, a_id: int):
         for dwd_station in self.unloaded_dwdstations:
-            if dwd_station.id == data.id:
+            if dwd_station.id == a_id:
                 self.unloaded_dwdstations.remove(dwd_station)
 
 
 class DWDStations:
     def __init__(self):
-        self.folder = ""
         self.stations = {}
         self.id_latlon = {}
         self.stderr = ""
@@ -110,8 +122,8 @@ class DWDStations:
         if self.id_latlon.get(a_id) is None:
             return False
         latlon_key = self.id_latlon[a_id]
-        self.stations.get(latlon_key).load_data(filename)
-        self.unloaded_files.remove(self.stations.get(latlon_key))
+        self.stations[latlon_key].load_data(filename)
+        self.unloaded_files.remove(a_id)
         return True
 
     def get_value(self, date_time: datetime, lat: float, lon: float) -> float:
@@ -128,32 +140,28 @@ class DWDStations:
         self.unloaded_files.show_warnings()
 
     def get_stations(self) -> List[DWDStation]:
-        dwd_stations = []
+        return list(self.stations.values())
+
+    def get_station(self, lat: float, lon: float) -> DWDStation | None:
+        if not (self.stations.get(f"{lat};{lon}") is None):
+            return self.stations[f"{lat};{lon}"]
+        return None
+
+    def datetime_in_range(self, date_time: datetime, lat: float, lon: float) -> bool:
+        if not (self.get_station(lat, lon) is None):
+            return self.get_station(lat, lon).datetime_in_range(date_time)
+        return False
+
+    def get_station_locations(self) -> List[Tuple[float, float]]:
+        locations_list = []
         for key in self.stations.keys():
-            dwd_stations.append(self.stations.get(key))
-        return dwd_stations
-
-    def get_station_locations(self) -> List[str]:
-        dwd_locations = []
-        for key in self.stations.keys():
-            dwd_locations.append(key)
-        return dwd_locations
-
-
-def _round_to_nearest_hour(date_time: datetime) -> datetime:
-    rounded_date = date_time.replace(second=0, microsecond=0, minute=0)
-    if date_time.minute >= 30:
-        rounded_date += timedelta(hours=1)
-    return rounded_date
-
-
-def _get_files(look_up_path: str, extension: str) -> List[Path]:
-    files = list(pathlib.Path(look_up_path).glob(f"**/*{extension}"))
-    return files
+            lat_str, lon_str = key.split(';')
+            locations_list.append((float(lat_str), float(lon_str)))
+        return locations_list
 
 
 def _get_init_file(look_up_path: str) -> str:
-    files = _get_files(look_up_path, ".txt")
+    files = gFunc.get_files(look_up_path, ".txt")
     for a_file in files:
         if _INIT_FILE_MARKER.lower() in str(a_file).lower():
             return str(a_file)
@@ -166,8 +174,12 @@ def _read_id(filename: str) -> int:
     # Read the Textfile and get station id
     with open(filename, "r") as content:
         text = content.read()
-        line = text.strip().split("\n")[:][1]
-        return int(line.split(";")[0])
+        lines = text.strip().split("\n")
+        # First row contain column headers
+        if len(lines) <= 1:
+            return -1
+        line = lines[:][1]
+        return gFunc.int_def(line.split(";")[0], -1)
 
 
 def init_dwd_stations(path: str) -> DWDStations:
@@ -181,7 +193,8 @@ def init_dwd_stations(path: str) -> DWDStations:
     # Load init file who contains all station ids
     init_file = _get_init_file(path)
     if init_file == ewConst.ERROR_INIT_FILE_NOT_EXIST:
-        clPrint.show_error(f"No init-file could be found (Filename contains: '{_INIT_FILE_MARKER}'. Your <path>: '{path}'")
+        clPrint.show_error(f"No init-file could be found (Filename contains: '{_INIT_FILE_MARKER}'. "
+                           f"Your <path>: '{path}'")
         dwds.stderr = f"{ewConst.ERROR_INIT_FILE_NOT_EXIST}: Init File not exist"
         return dwds
 
@@ -195,30 +208,39 @@ def init_dwd_stations(path: str) -> DWDStations:
             dwds.add(line)
     if len(dwds.stations) == 0:
         dwds.stderr = f"{ewConst.ERROR_CORRUPT_INIT_FILES}: Init File is corrupt or empty"
+        return dwds
 
     # Collect all zip-files (dwd data-files)
-    zip_files = _get_files(path, ".zip")
+    zip_files = gFunc.get_files(path, ".zip")
     for zip_file in zip_files:
         # ZIP-Datei öffnen
         with zipfile.ZipFile(zip_file, 'r') as a_zip:
+            directory = os.path.dirname(zip_file)
             # Prüfe, ob die Zielfile in der ZIP-Datei existiert
             for name in a_zip.namelist():
                 if _DATA_FILE_MARKER.lower() in name.lower():
-                    # Extrahiere die Datei
-                    a_zip.extract(name, os.path.abspath(_EXTRACTION_FOLDER))
-    data_files = _get_files(_EXTRACTION_FOLDER, ".txt")
-    if len(data_files) == 0:
+                    data_filename = os.path.join(os.path.abspath(directory), name)
+                    if not os.path.exists(data_filename):
+                        # Extrahiere die Datei
+                        a_zip.extract(name, os.path.abspath(directory))
+    data_files = gFunc.get_files(path, ".txt")
+    # Only 1 Init File with extension *.txt
+    if len(data_files) == 1:
         clPrint.show_error(f"No *.txt files could be found. Your <path>: '{path}'")
         dwds.stderr = f"{ewConst.ERROR_NO_DWD_STATIONDATA_FOUND}: No DWD station files could be found"
         return dwds
 
     # load every initialized station
-    for data in data_files:
-        dwds.load_station(str(data))
+    for idx, a_file in enumerate(data_files):
+        if idx == 0:
+            continue
+        dwds.load_station(str(a_file))
 
     # collect all unloaded stations
     all_unloaded = dwds.get_unloaded_stations()
     if len(all_unloaded) > 0:
-        dwds.stderr = (f"{ewConst.WARNING_SOME_STATIONS_UNLOADED}: Some stations are unloaded, please check here: "
-                       f"[unloaded_files]")
+        clPrint.show_warning(f"init_dwd_stations(...): Some stations are unloaded, these station have been ignored. "
+                             f"({len(all_unloaded)}/{len(dwds.stations)} are unloaded)")
+        dwds.stderr = (f"{ewConst.WARNING_SOME_STATIONS_UNLOADED}: Some stations are unloaded "
+                       f", please check here: [unloaded_files]")
     return dwds
