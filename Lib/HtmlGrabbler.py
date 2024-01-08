@@ -21,14 +21,14 @@ from typing import List
 # TODO: Einfügen von DocStrings ("""Beschreibender Text""") unter dem Funktionsname
 class DownloadData:
     def __init__(self, url: str, file: str, path: str):
-        self.url = url
-        self.file = file
-        self.target_path = os.path.join(path, file)
+        self.url: str = url
+        self.file: str = file
+        self.target_path: str = os.path.join(path, file)
 
 
 def get_html_links_as_list(url_html: str) -> List[str]:
     response = requests.get(url_html)
-    link_texts = []
+    link_texts: list[str] = []
     if response.status_code == 200:
         # Use BeautifulSoup to extract the text from the HTML
         soup = BeautifulSoup(response.text, 'html.parser')

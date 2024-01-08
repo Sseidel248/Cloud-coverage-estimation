@@ -6,4 +6,4 @@ Description:
 """
 from datetime import datetime
 
-NONE_DATETIME = datetime(1970, 1, 1, 0, 0)
+NONE_DATETIME: datetime = datetime(1970, 1, 1, 0, 0)

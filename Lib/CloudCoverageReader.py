@@ -27,7 +27,7 @@ class ModelType(Enum):
 class CloudCoverData(g2r.Grib2Data):
     def __init__(self, filename: str):
         super().__init__(filename)
-        self.model_type = ModelType.UNKNOWN
+        self.model_type: ModelType = ModelType.UNKNOWN
         if self.grid_type == g2r.GridType.LAT_LON_REGULAR:
             self.model_type = ModelType.ICON_D2 if self.latlon_data.delta_by == mConst.ICON_D2_LAT_LON_DELTA \
                 else ModelType.ICON_EU
@@ -42,7 +42,7 @@ class CloudCoverData(g2r.Grib2Data):
         return (f"Date [start]: {str(self.org_date_time)}; Param: {self.param}; "
                 f"Fcst: {self.fcst_minutes:4d} [min]; Model: {model}; "
                 f"File: {self.filename}")
-    
+
     def get_value(self, lat: float, lon: float) -> float:
         return g2r.get_value(self, lat, lon).val
 
@@ -52,7 +52,7 @@ class CloudCoverData(g2r.Grib2Data):
 
 class InvalidCloudCoverages:
     def __init__(self, warn_msg: str):
-        self.stdwarn = warn_msg
+        self.stdwarn: str = warn_msg
         self.invalid_cloud_cover_datas: List[CloudCoverData] = []
 
     def show_warnings(self):
@@ -63,7 +63,7 @@ class InvalidCloudCoverages:
 
     def add(self, data: CloudCoverData):
         self.invalid_cloud_cover_datas.append(data)
-        
+
     def remove(self, filename: str):
         for cloud_cover_data in self.invalid_cloud_cover_datas:
             if cloud_cover_data.filename == filename:
@@ -72,28 +72,27 @@ class InvalidCloudCoverages:
 
 class CloudCoverDatas:
     def __init__(self, model: str):
-        self.model = model.lower()
-        if self.model != mConst.MODEL_ICON_D2.lower() and self.model != mConst.MODEL_ICON_EU.lower():
-            self.model_type = ModelType.UNKNOWN
-        else:
+        self.model: str = model.lower()
+        self.model_type: ModelType = ModelType.UNKNOWN
+        if self.model == mConst.MODEL_ICON_D2.lower() or self.model == mConst.MODEL_ICON_EU.lower():
             self.model_type = ModelType.ICON_D2 if self.model == mConst.MODEL_ICON_D2.lower() else ModelType.ICON_EU
-        self.cloud_cover_files = {}  # Key:Datetime fcst; Value: Data
-        self.min_datetime = gConst.NONE_DATETIME
-        self.max_datetime = gConst.NONE_DATETIME
-        self.stderr = ""
+        self.cloud_cover_files: dict[datetime, CloudCoverData] = {}
+        self.min_datetime: datetime = gConst.NONE_DATETIME
+        self.max_datetime: datetime = gConst.NONE_DATETIME
+        self.stderr: str = ""
         # make debugging easier because files with errors are listed
-        self.wrong_model_files = InvalidCloudCoverages("Wrong model")
-        self.wrong_param_files = InvalidCloudCoverages("Wrong param in file")
-        self.no_latlon_files = InvalidCloudCoverages("Unstructured grid")
-        self.none_datetime_files = InvalidCloudCoverages("File has no datetime")
-        self.too_far_forecast_files = InvalidCloudCoverages("Forecast is longer then 120 min")
+        self.wrong_model_files: InvalidCloudCoverages = InvalidCloudCoverages("Wrong model")
+        self.wrong_param_files: InvalidCloudCoverages = InvalidCloudCoverages("Wrong param in file")
+        self.no_latlon_files: InvalidCloudCoverages = InvalidCloudCoverages("Unstructured grid")
+        self.none_datetime_files: InvalidCloudCoverages = InvalidCloudCoverages("File has no datetime")
+        self.too_far_forecast_files: InvalidCloudCoverages = InvalidCloudCoverages("Forecast is longer then 120 min")
 
     def add(self, filename: str, data: CloudCoverData = None) -> bool:
         if data is None and os.path.exists(filename):
             data = CloudCoverData(filename)
         if not isinstance(data, CloudCoverData):
             return False
-        invalid = False
+        invalid: bool = False
         if data.model_type != self.model_type:
             self.wrong_model_files.add(data)
             invalid = True
@@ -147,7 +146,7 @@ class CloudCoverDatas:
         else:
             return False
 
-    def get_cloud_cover(self, date_time: datetime, lat: float, lon: float,) -> float:
+    def get_cloud_cover(self, date_time: datetime, lat: float, lon: float, ) -> float:
         if len(self.cloud_cover_files) == 0:
             return -1
         if not self.datetime_in_range(date_time):
@@ -159,32 +158,31 @@ class CloudCoverDatas:
         if not self.lon_in_range(lon):
             clPrint.show_error(f"{ewConst.ERROR_LON_OUT_OF_RANGE}: Lon out of Range")
             return -1
-        rounded_date_time = gFunc.round_to_nearest_hour(date_time)
-        closest_date_time = min(self.cloud_cover_files.keys(), key=lambda x: abs(x - rounded_date_time))
-        time_delta = gFunc.hours_difference(rounded_date_time, closest_date_time)
+        rounded_date_time: datetime = gFunc.round_to_nearest_hour(date_time)
+        closest_date_time: datetime = min(self.cloud_cover_files, key=lambda x: abs(x - rounded_date_time))
+        time_delta: float = gFunc.hours_difference(rounded_date_time, closest_date_time)
         if time_delta > 1:
             return -1
         return self.cloud_cover_files[closest_date_time].get_value(lat, lon)
 
     def get_used_datetimes(self) -> List[datetime]:
-        return list(self.cloud_cover_files.keys())
+        return list(self.cloud_cover_files)
 
-# TODO: Es sind manche Fehlerhafte grib2 Daten in mehreren Gruppen sind -> besser immer nur einer zu ordnen, die Erste!
     def get_num_invalid_files(self) -> int:
-        combined_dict = ({data.filename: None for data in self.wrong_model_files.invalid_cloud_cover_datas} |
-                         {data.filename: None for data in self.wrong_param_files.invalid_cloud_cover_datas} |
-                         {data.filename: None for data in self.no_latlon_files.invalid_cloud_cover_datas} |
-                         {data.filename: None for data in self.none_datetime_files.invalid_cloud_cover_datas} |
-                         {data.filename: None for data in self.too_far_forecast_files.invalid_cloud_cover_datas})
+        combined_dict: dict[None, CloudCoverData] = \
+            ({data.filename: None for data in self.wrong_model_files.invalid_cloud_cover_datas} |
+             {data.filename: None for data in self.wrong_param_files.invalid_cloud_cover_datas} |
+             {data.filename: None for data in self.no_latlon_files.invalid_cloud_cover_datas} |
+             {data.filename: None for data in self.none_datetime_files.invalid_cloud_cover_datas} |
+             {data.filename: None for data in self.too_far_forecast_files.invalid_cloud_cover_datas})
         return len(combined_dict)
 
 
 def _get_info_str(data: CloudCoverData) -> str:
-    if data.model_type == ModelType.UNKNOWN:
-        model = mConst.MODEL_UNSTRUCTURED
-    elif data.model_type == ModelType.ICON_D2:
+    model: str = mConst.MODEL_UNSTRUCTURED
+    if data.model_type == ModelType.ICON_D2:
         model = mConst.MODEL_ICON_D2
-    else:
+    elif data.model_type == ModelType.ICON_EU:
         model = mConst.MODEL_ICON_EU
     return (f"Date [start]: {str(data.org_date_time)}; Param: {data.param}; "
             f"Fcst: {data.fcst_minutes:4d} [min]; Model: {model}; "
@@ -193,23 +191,23 @@ def _get_info_str(data: CloudCoverData) -> str:
 
 # TODO: Insert DocStrings for public functions ("""Descriptive text""") under the function name
 def init_cloud_cover_data(path: str, model_name: str) -> CloudCoverDatas:
-    ccd = CloudCoverDatas(model_name)
+    ccd: CloudCoverDatas = CloudCoverDatas(model_name)
     # Check if a valid model name has been selected.
     # Text comparison without consideration of capitalization
-    if model_name.lower() != mConst.MODEL_ICON_D2.lower() or model_name.lower() != mConst.MODEL_ICON_D2.lower():
+    if model_name.lower() != mConst.MODEL_ICON_D2.lower() and model_name.lower() != mConst.MODEL_ICON_EU.lower():
         clPrint.show_error(f"Please only use 'icon-d2' or 'icon-eu'. Your <model_name>: '{model_name}'.")
         ccd.stderr = f"{ewConst.ERROR_WRONG_MODEL}: Wrong model"
         return ccd
 
     # Check if path exist
-    path = os.path.abspath(path)
+    path: str = os.path.abspath(path)
     if not os.path.exists(path):
         clPrint.show_error(f"The path you have entered does not exist. Your <path>: '{path}'")
         ccd.stderr = f"{ewConst.ERROR_PATH_NOT_EXIST}: Path does not exist"
         return ccd
 
     # looking for bz2-archives and extract it, after that looking for grib2-files
-    cloud_cover_datas = g2r.load_folder(path)
+    cloud_cover_datas: list[str] = g2r.load_folder(path)
 
     # Check how many files are found
     if len(cloud_cover_datas) == 0:

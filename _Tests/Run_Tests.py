@@ -3,7 +3,7 @@ import os
 
 # Test without overage
 if __name__ == "__main__":
-    test_dir = os.path.abspath('.')
+    test_dir: str = os.path.abspath('.')
     # create TestLoader
     test_loader = unittest.TestLoader()
     # collect all testfiles

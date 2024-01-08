@@ -16,8 +16,8 @@ class TestGeneralFunctions(unittest.TestCase):
                          gFunc.round_to_nearest_hour(datetime(2023, 12, 27, 9, 38)))
 
     def test_hours_difference(self):
-        date1 = datetime(2023, 12, 27, 10, 0)
-        date2 = datetime(2023, 12, 27, 6, 30)
+        date1:datetime = datetime(2023, 12, 27, 10, 0)
+        date2:datetime = datetime(2023, 12, 27, 6, 30)
         self.assertEqual(gFunc.hours_difference(date1, date1), 0)
         self.assertEqual(gFunc.hours_difference(date1, date2), 3.5)
 

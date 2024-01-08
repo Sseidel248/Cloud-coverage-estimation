@@ -12,11 +12,11 @@ from unittest.mock import patch
 
 class TestLatLonData(unittest.TestCase):
     def test__init__(self):
-        datastr = ("1:0:grid_template=0:winds(N/S):"
-                   "lat-lon grid:(1215 x 746) units 1e-06 input WE:SN output WE:SN res 48)"
-                   "lat 43.180000 to 58.080000 by 0.020000"
-                   "lon 356.060000 to 20.340000 by 0.020000 #points=906390")
-        test_obj = LatLonData(datastr)
+        datastr: str = ("1:0:grid_template=0:winds(N/S):"
+                        "lat-lon grid:(1215 x 746) units 1e-06 input WE:SN output WE:SN res 48)"
+                        "lat 43.180000 to 58.080000 by 0.020000"
+                        "lon 356.060000 to 20.340000 by 0.020000 #points=906390")
+        test_obj: LatLonData = LatLonData(datastr)
         self.assertEqual(test_obj.lat_max, 58.08)
         self.assertEqual(test_obj.lat_min, 43.18)
         self.assertEqual(test_obj.lon_min, 356.06)
@@ -24,8 +24,8 @@ class TestLatLonData(unittest.TestCase):
         self.assertEqual(test_obj.delta_by, 0.02)
 
     def test_invalid__init__(self):
-        datastr = ""
-        test_obj = LatLonData(datastr)
+        datastr: str = ""
+        test_obj: LatLonData = LatLonData(datastr)
         self.assertEqual(test_obj.lat_max, -1)
         self.assertEqual(test_obj.lat_min, -1)
         self.assertEqual(test_obj.lon_min, -1)
@@ -39,7 +39,7 @@ class TestGrib2Data(unittest.TestCase):
         self.assertFalse(os.path.exists(tc.NOT_EXISTING_TESTFILE_D2))
 
     def test__init__(self):
-        test_obj = Grib2Data(tc.EXISTING_TESTFILE_D2)
+        test_obj: Grib2Data = Grib2Data(tc.EXISTING_TESTFILE_D2)
         self.assertEqual(test_obj.filename, os.path.abspath(tc.EXISTING_TESTFILE_D2))
         self.assertEqual(test_obj.fcst_date_time, datetime(2023, 11, 29, 13, 00))
         self.assertEqual(test_obj.org_date_time, datetime(2023, 11, 29, 12, 00))
@@ -49,7 +49,7 @@ class TestGrib2Data(unittest.TestCase):
         self.assertNotEqual(test_obj.latlon_data, None)
 
     def test_invalid__init__(self):
-        test_obj = Grib2Data(tc.NOT_EXISTING_TESTFILE_D2)
+        test_obj: Grib2Data = Grib2Data(tc.NOT_EXISTING_TESTFILE_D2)
         self.assertEqual(test_obj.filename, os.path.abspath(tc.NOT_EXISTING_TESTFILE_D2))
         self.assertEqual(test_obj.fcst_date_time, gConst.NONE_DATETIME)
         self.assertEqual(test_obj.org_date_time, gConst.NONE_DATETIME)
@@ -59,22 +59,22 @@ class TestGrib2Data(unittest.TestCase):
         self.assertNotEqual(test_obj.latlon_data, None)
 
     def test_exist_latlon(self):
-        test_obj = Grib2Data(tc.EXISTING_TESTFILE_D2)
+        test_obj: Grib2Data = Grib2Data(tc.EXISTING_TESTFILE_D2)
         self.assertTrue(test_obj.exist_latlon())
 
     def test_exist_latlon_invalid(self):
-        test_obj = Grib2Data(tc.NOT_EXISTING_TESTFILE_D2)
+        test_obj: Grib2Data = Grib2Data(tc.NOT_EXISTING_TESTFILE_D2)
         self.assertFalse(test_obj.exist_latlon())
 
     def test_lat_in_range(self):
-        test_obj = Grib2Data(tc.EXISTING_TESTFILE_D2)
+        test_obj: Grib2Data = Grib2Data(tc.EXISTING_TESTFILE_D2)
         self.assertTrue(test_obj.lat_in_range(58.08))
         self.assertTrue(test_obj.lat_in_range(43.18))
         self.assertFalse(test_obj.lat_in_range(58.09))
         self.assertFalse(test_obj.lat_in_range(43.17))
 
     def test_lon_in_range(self):
-        test_obj = Grib2Data(tc.EXISTING_TESTFILE_D2)
+        test_obj: Grib2Data = Grib2Data(tc.EXISTING_TESTFILE_D2)
         self.assertTrue(test_obj.lon_in_range(356.06))
         self.assertTrue(test_obj.lon_in_range(20.34))
         self.assertFalse(test_obj.lon_in_range(356.05))
@@ -83,7 +83,7 @@ class TestGrib2Data(unittest.TestCase):
 
 class TestGrib2Result(unittest.TestCase):
     def test__init__(self):
-        test_obj = Grib2Result()
+        test_obj: Grib2Result = Grib2Result()
         self.assertIsNotNone(test_obj)
         self.assertEqual(test_obj.stderr, "")
         self.assertEqual(test_obj.val, -1)
@@ -91,8 +91,8 @@ class TestGrib2Result(unittest.TestCase):
         self.assertEqual(test_obj.val_lon, -1)
 
     def test_read_values(self):
-        test_output = "1:0:lon=13.000000,lat=53.000000,val=100"
-        test_obj = Grib2Result()
+        test_output: str = "1:0:lon=13.000000,lat=53.000000,val=100"
+        test_obj: Grib2Result = Grib2Result()
         test_obj.read_values(test_output)
         self.assertEqual(test_obj.stderr, "")
         self.assertEqual(test_obj.val, 100)
@@ -100,8 +100,8 @@ class TestGrib2Result(unittest.TestCase):
         self.assertEqual(test_obj.val_lon, 13)
 
     def test_read_values_invalid(self):
-        test_output = "1:0:"
-        test_obj = Grib2Result()
+        test_output: str = "1:0:"
+        test_obj: Grib2Result = Grib2Result()
         test_obj.read_values(test_output)
         err_msg = f"{ewConst.ERROR_PARAM_NOT_EXIST}: Param not exist"
         self.assertEqual(test_obj.stderr, err_msg)
@@ -132,22 +132,22 @@ class TestGrid2ReaderFunctions(unittest.TestCase):
         self.assertEqual(test_gridtype, GridType.UNSTRUCTURED)
 
     def test_get_files(self):
-        num_files = len(gFunc.get_files(tc.TEST_DIR_MODEL_D2, ".*"))
+        num_files: list[str] = len(gFunc.get_files(tc.TEST_DIR_MODEL_D2, ".*"))
         self.assertEqual(num_files, 3)
-        num_files = len(gFunc.get_files(tc.TEST_DIR_MODEL_D2, ".grib2"))
+        num_files: int = len(gFunc.get_files(tc.TEST_DIR_MODEL_D2, ".grib2"))
         self.assertEqual(num_files, 2)
 
     def test_extract_bz2_archives(self):
-        test_files = gFunc.get_files(tc.TEST_DIR_MODEL_D2, ".bz2")
+        test_files: list[str] = gFunc.get_files(tc.TEST_DIR_MODEL_D2, ".bz2")
         self.assertEqual(len(test_files), 1)
         g2r._extract_bz2_archives(test_files)
         self.assertTrue(os.path.exists(tc.EXTRACTED_FILE))
 
     def test_extract_bz2_archives_empty_dir(self):
-        test_files = gFunc.get_files(tc.EMPTY_TEST_DIR, ".bz2")
+        test_files: list[str] = gFunc.get_files(tc.EMPTY_TEST_DIR, ".bz2")
         self.assertEqual(len(test_files), 0)
         g2r._extract_bz2_archives(test_files)
-        no_files = gFunc.get_files(tc.EMPTY_TEST_DIR, ".grib2")
+        no_files: list[str] = gFunc.get_files(tc.EMPTY_TEST_DIR, ".grib2")
         self.assertEqual(len(no_files), 0)
 
     def test_get_datetime_param_fcst_invalid(self):
@@ -161,8 +161,8 @@ class TestGrid2ReaderFunctions(unittest.TestCase):
         self.assertFalse(g2r.in_range(1000, -999, 999))
         self.assertFalse(g2r.in_range(1000, 999, -999))
 
-        min_date = datetime(1970, 1, 1, 0, 0)
-        max_date = datetime.now()
+        min_date: datetime = datetime(1970, 1, 1, 0, 0)
+        max_date: datetime = datetime.now()
         self.assertTrue(g2r.in_range(datetime(1991, 8, 24, 9, 30), min_date, max_date))
         self.assertFalse(g2r.in_range(max_date + timedelta(days=1), min_date, max_date))
         self.assertFalse(g2r.in_range(datetime(1991, 8, 24, 9, 30), max_date, min_date))
@@ -186,55 +186,55 @@ class TestGrid2ReaderFunctions(unittest.TestCase):
         self.assertEqual(g2r.convert_in_180_180(480), 120)
 
     def test_load_folder_valid(self):
-        grib2pathes = g2r.load_folder(tc.TEST_DIR_MODEL_D2)
+        grib2pathes: list[str] = g2r.load_folder(tc.TEST_DIR_MODEL_D2)
         self.assertEqual(len(grib2pathes), 3)
 
     def test_load_folder_invalid(self):
-        grib2datas = g2r.load_folder("")
+        grib2datas: list[str] = g2r.load_folder("")
         self.assertEqual(len(grib2datas), 0)
 
     def test_get_value_from_file_valid(self):
         self.assertTrue(os.path.exists(tc.EXISTING_TESTFILE_D2))
-        res = g2r.get_value_from_file(tc.EXISTING_TESTFILE_D2, 53, 13)
+        res: Grib2Result = g2r.get_value_from_file(tc.EXISTING_TESTFILE_D2, 53, 13)
         self.assertEqual(res.val, 100)
         self.assertEqual(res.stderr, "")
 
     def test_get_value_from_file_invalid(self):
-        res = g2r.get_value_from_file(tc.NOT_EXISTING_TESTFILE_D2, 53, 13)
+        res: Grib2Result = g2r.get_value_from_file(tc.NOT_EXISTING_TESTFILE_D2, 53, 13)
         self.assertEqual(res.val, -1)
         self.assertEqual(res.stderr, f"{ewConst.ERROR_FILE_NOT_EXIST}: File not exist")
 
     def test_get_value_valid(self):
-        test_obj = Grib2Data(tc.EXISTING_TESTFILE_D2)
-        res = g2r.get_value(test_obj, 53, 13)
+        test_obj: Grib2Data = Grib2Data(tc.EXISTING_TESTFILE_D2)
+        res: Grib2Result = g2r.get_value(test_obj, 53, 13)
         self.assertEqual(res.val, 100)
         self.assertEqual(res.stderr, "")
 
     def test_get_value_invalid(self):
-        test_obj = Grib2Data(tc.NOT_EXISTING_TESTFILE_D2)
-        res = g2r.get_value(test_obj, 53, 13)
+        test_obj: Grib2Data = Grib2Data(tc.NOT_EXISTING_TESTFILE_D2)
+        res: Grib2Result = g2r.get_value(test_obj, 53, 13)
         self.assertEqual(res.val, -1)
         self.assertEqual(res.stderr, f"{ewConst.ERROR_FILE_NOT_EXIST}: File not exist")
 
-        test_obj = Grib2Data(tc.INVALID_GRIDTYPE_FILE)
-        res = g2r.get_value(test_obj, 53, 13)
+        test_obj: Grib2Data = Grib2Data(tc.INVALID_GRIDTYPE_FILE)
+        res: Grib2Result = g2r.get_value(test_obj, 53, 13)
         self.assertEqual(res.val, -1)
         self.assertEqual(res.stderr, f"{ewConst.ERROR_UNSTRUCTURED_GRID}: Unstructured Grid")
 
-        test_obj = Grib2Data(tc.EXISTING_TESTFILE_D2)
-        res = g2r.get_value(test_obj, 0, 13)
+        test_obj: Grib2Data = Grib2Data(tc.EXISTING_TESTFILE_D2)
+        res: Grib2Result = g2r.get_value(test_obj, 0, 13)
         self.assertEqual(res.val, -1)
         self.assertEqual(res.stderr, f"{ewConst.ERROR_LAT_OUT_OF_RANGE}: Lat out of Range")
 
-        test_obj = Grib2Data(tc.EXISTING_TESTFILE_D2)
-        res = g2r.get_value(test_obj, 53, 30)
+        test_obj: Grib2Data = Grib2Data(tc.EXISTING_TESTFILE_D2)
+        res: Grib2Result = g2r.get_value(test_obj, 53, 30)
         self.assertEqual(res.val, -1)
         self.assertEqual(res.stderr, f"{ewConst.ERROR_LON_OUT_OF_RANGE}: Lon out of Range")
 
     def test_get_multiple_values(self):
-        coords = [(53, 13), (54, 14), (55, 15)]
-        test_obj = Grib2Data(tc.EXISTING_TESTFILE_D2)
-        g2rs = g2r.get_multiple_values(test_obj, coords)
+        coords: list[tuple[float, float]] = [(53, 13), (54, 14), (55, 15)]
+        test_obj: Grib2Data = Grib2Data(tc.EXISTING_TESTFILE_D2)
+        g2rs: list[Grib2Result] = g2r.get_multiple_values(test_obj, coords)
         self.assertEqual(len(g2rs), 3)
 
         self.assertEqual(g2rs[0].val, 100)
@@ -250,8 +250,8 @@ class TestGrid2ReaderFunctions(unittest.TestCase):
         self.assertEqual(g2rs[2].val_lon, 15)
 
     def test_get_multiple_values_invalid(self):
-        coords = [(70, 14), (55, 70)]
-        test_obj = Grib2Data(tc.NOT_EXISTING_TESTFILE_D2)
+        coords: list[tuple[float, float]] = [(70, 14), (55, 70)]
+        test_obj: Grib2Data = Grib2Data(tc.NOT_EXISTING_TESTFILE_D2)
         with patch("Lib.ColoredPrint.show_error") as mock_show_error:
             g2rs_file_not_exist = g2r.get_multiple_values(test_obj, coords)
             mock_show_error.assert_called()
@@ -268,8 +268,3 @@ class TestGrid2ReaderFunctions(unittest.TestCase):
             g2rs_invalid_grid_type = g2r.get_multiple_values(test_obj, coords)
             mock_show_error.assert_called()
         self.assertEqual(len(g2rs_invalid_grid_type), 0)
-
-
-
-
-
