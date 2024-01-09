@@ -132,7 +132,7 @@ class TestGrid2ReaderFunctions(unittest.TestCase):
         self.assertEqual(test_gridtype, GridType.UNSTRUCTURED)
 
     def test_get_files(self):
-        num_files: list[str] = len(gFunc.get_files(tc.TEST_DIR_MODEL_D2, ".*"))
+        num_files: int = len(gFunc.get_files(tc.TEST_DIR_MODEL_D2, ".*"))
         self.assertEqual(num_files, 3)
         num_files: int = len(gFunc.get_files(tc.TEST_DIR_MODEL_D2, ".grib2"))
         self.assertEqual(num_files, 2)
@@ -157,33 +157,33 @@ class TestGrid2ReaderFunctions(unittest.TestCase):
         self.assertEqual(test_fcst, -1)
 
     def test_in_range(self):
-        self.assertTrue(g2r.in_range(0, -999, 999))
-        self.assertFalse(g2r.in_range(1000, -999, 999))
-        self.assertFalse(g2r.in_range(1000, 999, -999))
+        self.assertTrue(gFunc.in_range(0, -999, 999))
+        self.assertFalse(gFunc.in_range(1000, -999, 999))
+        self.assertFalse(gFunc.in_range(1000, 999, -999))
 
         min_date: datetime = datetime(1970, 1, 1, 0, 0)
         max_date: datetime = datetime.now()
-        self.assertTrue(g2r.in_range(datetime(1991, 8, 24, 9, 30), min_date, max_date))
-        self.assertFalse(g2r.in_range(max_date + timedelta(days=1), min_date, max_date))
-        self.assertFalse(g2r.in_range(datetime(1991, 8, 24, 9, 30), max_date, min_date))
+        self.assertTrue(gFunc.in_range(datetime(1991, 8, 24, 9, 30), min_date, max_date))
+        self.assertFalse(gFunc.in_range(max_date + timedelta(days=1), min_date, max_date))
+        self.assertFalse(gFunc.in_range(datetime(1991, 8, 24, 9, 30), max_date, min_date))
 
     def test_convert_in_0_360(self):
-        self.assertEqual(g2r.convert_in_0_360(0), 0)
-        self.assertEqual(g2r.convert_in_0_360(360), 0)
-        self.assertEqual(g2r.convert_in_0_360(-360), 0)
-        self.assertEqual(g2r.convert_in_0_360(-120), 240)
-        self.assertEqual(g2r.convert_in_0_360(120), 120)
-        self.assertEqual(g2r.convert_in_0_360(-480), 240)
-        self.assertEqual(g2r.convert_in_0_360(480), 120)
+        self.assertEqual(gFunc.convert_in_0_360(0), 0)
+        self.assertEqual(gFunc.convert_in_0_360(360), 0)
+        self.assertEqual(gFunc.convert_in_0_360(-360), 0)
+        self.assertEqual(gFunc.convert_in_0_360(-120), 240)
+        self.assertEqual(gFunc.convert_in_0_360(120), 120)
+        self.assertEqual(gFunc.convert_in_0_360(-480), 240)
+        self.assertEqual(gFunc.convert_in_0_360(480), 120)
 
     def test_convert_in_180_180(self):
-        self.assertEqual(g2r.convert_in_180_180(0), 0)
-        self.assertEqual(g2r.convert_in_180_180(360), 0)
-        self.assertEqual(g2r.convert_in_180_180(-360), 0)
-        self.assertEqual(g2r.convert_in_180_180(-120), -120)
-        self.assertEqual(g2r.convert_in_180_180(120), 120)
-        self.assertEqual(g2r.convert_in_180_180(-480), -120)
-        self.assertEqual(g2r.convert_in_180_180(480), 120)
+        self.assertEqual(gFunc.convert_in_180_180(0), 0)
+        self.assertEqual(gFunc.convert_in_180_180(360), 0)
+        self.assertEqual(gFunc.convert_in_180_180(-360), 0)
+        self.assertEqual(gFunc.convert_in_180_180(-120), -120)
+        self.assertEqual(gFunc.convert_in_180_180(120), 120)
+        self.assertEqual(gFunc.convert_in_180_180(-480), -120)
+        self.assertEqual(gFunc.convert_in_180_180(480), 120)
 
     def test_load_folder_valid(self):
         grib2pathes: list[str] = g2r.load_folder(tc.TEST_DIR_MODEL_D2)

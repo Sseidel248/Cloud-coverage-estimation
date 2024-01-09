@@ -33,32 +33,36 @@ def export_as_csv(filename: str, dwd_stations: List[DWDStation], cloud_cover_rea
         dc.LON: [],
         dc.MODEL_VALUE: [],
         dc.STATION_VALUE: [],
-        dc.STATION_ID: []
+        dc.STATION_ID: [],
+        dc.STATION_HEIGHT: [],
+        dc.VALUE_MEASUREMENT_TYPE: []
     }
     coords = []
-    ids_station_values = []
+    stations_infos = []
     for idx, cc_date in enumerate(cloud_cover_reader.cloud_cover_files):
         coords.clear()
-        ids_station_values.clear()
+        stations_infos.clear()
 
         for dwd in dwd_stations:
             station_value = dwd.get_value(cc_date)
-            if station_value == -1:
+            if station_value.value == -1:
                 continue
             if cloud_cover_reader.lat_in_range(dwd.lat) and cloud_cover_reader.lon_in_range(dwd.lon):
                 coords.append((dwd.lat, dwd.lon))
-                ids_station_values.append((dwd.id, station_value))
+                stations_infos.append((dwd.id, dwd.height, station_value.value, station_value.measurement_type))
 
         if coords:
             cc = cloud_cover_reader.cloud_cover_files[cc_date]
             values = cc.get_multiple_values(coords)
-            for (a_id, station_value), value, (lat, lon) in zip(ids_station_values, values, coords):
+            for (a_id, height, dwd_value, measurement_type), value, (lat, lon) in zip(stations_infos, values, coords):
                 data[dc.DATE].append(cc_date)
                 data[dc.LAT].append(lat)
                 data[dc.LON].append(lon)
                 data[dc.MODEL_VALUE].append(value)
-                data[dc.STATION_VALUE].append(station_value)
+                data[dc.STATION_VALUE].append(dwd_value)
                 data[dc.STATION_ID].append(a_id)
+                data[dc.STATION_HEIGHT].append(height)
+                data[dc.VALUE_MEASUREMENT_TYPE].append(measurement_type)
 
         print(f"Writing process: {((idx + 1) / len(cloud_cover_reader.cloud_cover_files)) * 100:.2f}%")
 
@@ -74,13 +78,16 @@ cc_reader = ccr.init_cloud_cover_data("..\\DWD_Downloader\\WeatherData\\ICON_D2"
 # cc_reader = ccr.init_cloud_cover_data("..\\DWD_Downloader\\WeatherData\\ICON_EU", mConst.MODEL_ICON_EU)
 print(f"Number of loaded Files: {len(cc_reader.cloud_cover_files)}")
 all_model_datetimes = sorted(cc_reader.get_used_datetimes())
+print(f"Modeldatetime range: {str(all_model_datetimes[0])} until {str(all_model_datetimes[-1])}")
+print("-> Attention, there could be gaps in the date range.")
 
 dwd_reader = dwd_sr.init_dwd_stations("..\\DWD_Downloader\\WeatherStations\\Cloudiness\\20231228")
 all_dwd_locations = dwd_reader.get_station_locations()
-print(f"Number of loaded DWD Stations: {len(all_dwd_locations)}")
+print(f"Number of readed DWD Stations: {len(all_dwd_locations)}")
 
 all_usefull_stations = list(get_usefull_station(all_dwd_locations, dwd_reader, cc_reader))
-print(f"Number of DWD measuring stations that can be used: {len(all_usefull_stations)}")
+print(f"Number of DWD measuring stations that can be used for actual model (datetime range): "
+      f"{len(all_usefull_stations)}")
 
 if dc.DELETE_BEFORE_START and os.path.exists(dc.EXPORT_NAME):
     os.remove(dc.EXPORT_NAME)

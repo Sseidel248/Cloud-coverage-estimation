@@ -5,7 +5,7 @@ import Lib.Consts.GeneralConts as gConst
 import Lib.Consts.ErrorWarningConsts as ewConst
 from datetime import datetime
 from unittest.mock import patch
-from Lib.DWDStationReader import DWDStation, InvalidStations, DWDStations
+from Lib.DWDStationReader import DWDStation, InvalidStations, DWDStations, DWDValue
 from Lib.DWDStationReader import _get_init_file, _read_id, init_dwd_stations
 
 INIT_DATA_ID_00096 = ("00096 20190410 20231227             50     52.9437   12.8518 Neuruppin-Alt Ruppin"
@@ -50,25 +50,28 @@ class TestDWDStation(unittest.TestCase):
     def test_get_value(self):
         dwd: DWDStation = DWDStation(INIT_DATA_ID_00096)
         dwd.load_data(tc.DWD_TESTFILE_ID_96)
-        excepted_value: float = 3 / 8 * 100
-        self.assertEqual(dwd.get_value(datetime(2022, 6, 26, 1)), excepted_value)
-        self.assertEqual(dwd.get_value(datetime(2022, 6, 26, 1, 12)), excepted_value)
-        self.assertEqual(dwd.get_value(datetime(2022, 6, 26, 0, 45)), excepted_value)
+        self.assertEqual(dwd.get_value(datetime(2022, 6, 26, 1)).value, 37.5)
+        self.assertEqual(dwd.get_value(datetime(2022, 6, 26, 1)).measurement_type, "I")
+        self.assertEqual(dwd.get_value(datetime(2022, 6, 26, 1, 12)).value, 37.5)
+        self.assertEqual(dwd.get_value(datetime(2022, 6, 26, 1, 12)).measurement_type, "I")
+        self.assertEqual(dwd.get_value(datetime(2022, 6, 26, 0, 45)).value, 37.5)
+        self.assertEqual(dwd.get_value(datetime(2022, 6, 26, 0, 45)).measurement_type, "I")
 
     def test_invalid_get_value(self):
         dwd: DWDStation = DWDStation(INIT_DATA_ID_00096)
-        self.assertEqual(dwd.get_value(datetime(2022, 6, 26, 1)), -1)
-        self.assertEqual(dwd.get_value(datetime(1970, 1, 1)), -1)
+        empty_value = DWDValue()
+        self.assertEqual(dwd.get_value(datetime(2022, 6, 26, 1)).value, empty_value.value)
+        self.assertEqual(dwd.get_value(datetime(1970, 1, 1)).value, empty_value.value)
 
     def test_get_info_str(self):
         dwd: DWDStation = DWDStation(INIT_DATA_ID_00096)
         self.assertEqual(dwd.get_info_str(), f"Id: {dwd.id} ,Lat: {dwd.lat} ,Lon: {dwd.lon} ,"
-                                             f"File: {dwd.filename} ,Loaded: {dwd.loaded}")
+                                             f"Loaded: {dwd.loaded} ,File: {dwd.filename}")
 
     def test_invalid_get_info_str(self):
         dwd: DWDStation = DWDStation("")
-        self.assertEqual(dwd.get_info_str(), f"Id: {-1} ,Lat: {-1} ,Lon: {-1} ,File:  ,"
-                                             f"Loaded: {dwd.loaded}")
+        self.assertEqual(dwd.get_info_str(), f"Id: {-1} ,Lat: {-1} ,Lon: {-1} ,Loaded: {dwd.loaded} ,"
+                                             f"File: ")
 
     def test_datetime_in_range_with_loaded_file(self):
         dwd: DWDStation = DWDStation(INIT_DATA_ID_00096)
@@ -171,14 +174,16 @@ class TestDWDStations(unittest.TestCase):
         stations.add(INIT_DATA_ID_00096)
         stations.load_station(tc.DWD_TESTFILE_ID_96)
         date = datetime(2023, 12, 27, 23)
-        self.assertEqual(stations.get_value(date, 53, 12), -1)
+        self.assertEqual(stations.get_value(date, 53, 12).value, -1)
+        self.assertEqual(stations.get_value(date, 53, 12).measurement_type, "")
 
     def test_get_value(self):
         stations: DWDStations = DWDStations()
         stations.add(INIT_DATA_ID_00096)
         stations.load_station(tc.DWD_TESTFILE_ID_96)
         date = datetime(2023, 12, 27, 23)
-        self.assertEqual(stations.get_value(date, 52.9437, 12.8518), 100)
+        self.assertEqual(stations.get_value(date, 52.9437, 12.8518).value, 100)
+        self.assertEqual(stations.get_value(date, 52.9437, 12.8518).measurement_type, "P")
 
     def test_get_unloaded_stations(self):
         stations: DWDStations = DWDStations()
@@ -217,6 +222,24 @@ class TestDWDStations(unittest.TestCase):
         stations.add(INIT_DATA_ID_00096)
         self.assertEqual(len(stations.get_stations()), 1)
         self.assertEqual(stations.get_stations()[0].id, 96)
+
+    def test_get_stations_with_range(self):
+        stations: DWDStations = DWDStations()
+        with open(tc.DWD_INIT_FILE, 'r') as content:
+            # Skip Header line
+            content.readline()
+            # Skip Splitter line
+            content.readline()
+            for line in content:
+                line = line.strip()
+                if line:
+                    stations.add(line)
+        station_range_lat = stations.get_stations(lat_range=(50.9, 51))
+        self.assertEqual(len(station_range_lat), 10)
+        station_range_lon = stations.get_stations(lon_range=(13.0, 13.1))
+        self.assertEqual(len(station_range_lon), 11)
+        station_range_latlon = stations.get_stations(lat_range=(50.9, 51), lon_range=(13, 14))
+        self.assertEqual(len(station_range_latlon), 1)
 
     def test_get_station_invalid(self):
         stations: DWDStations = DWDStations()

@@ -20,6 +20,12 @@ _INIT_FILE_MARKER: str = "Stundenwerte_Beschreibung_Stationen"
 _DATA_FILE_MARKER: str = "produkt_"
 
 
+class DWDValue:
+    def __init__(self):
+        self.value: float = -1
+        self.measurement_type = ""
+
+
 class DWDStation:
     def __init__(self, datastr: str):
         self.filename: str = ""
@@ -69,7 +75,7 @@ class DWDStation:
                         line += next_char.decode()
                     position -= 1
 
-    def get_value(self, date_time: datetime) -> float:
+    def get_value(self, date_time: datetime) -> DWDValue:
         rounded_datetime: datetime = gFunc.round_to_nearest_hour(date_time)
         datetime_str: str = rounded_datetime.strftime("%Y%m%d%H")
         if os.path.exists(self.filename):
@@ -78,14 +84,16 @@ class DWDStation:
                     if datetime_str in line:
                         parts: list[str] = line.split(';')
                         if len(parts) > 4:
+                            dwd_value:DWDValue = DWDValue()
+                            dwd_value.measurement_type = parts[3].strip()
                             value: float = float(parts[4].strip())
-                            if value == -1:
-                                return -1
-                            return value / 8 * 100
-        return -1
+                            if value != -1:
+                                dwd_value.value = value / 8 * 100
+                            return dwd_value
+        return DWDValue()
 
-    def get_info_str(self) -> str:
-        return f"Id: {self.id} ,Lat: {self.lat} ,Lon: {self.lon} ,File: {self.filename} ,Loaded: {self.loaded}"
+    def get_info_str(self):
+        return _get_info_str(self)
 
     def datetime_in_range(self, date_time: datetime) -> bool:
         return self.date_from <= date_time <= self.date_to
@@ -100,7 +108,7 @@ class InvalidStations:
         if len(self.unloaded_dwdstations) > 0:
             clPrint.show_warning(self.stdwarn)
             for a_dwdstation in self.unloaded_dwdstations:
-                clPrint.show_warning(a_dwdstation.get_info_str(), True)
+                clPrint.show_warning(_get_info_str(a_dwdstation), True)
 
     def add(self, data: DWDStation):
         self.unloaded_dwdstations.append(data)
@@ -142,11 +150,11 @@ class DWDStations:
         self.unloaded_files.remove(a_id)
         return True
 
-    def get_value(self, date_time: datetime, lat: float, lon: float) -> float:
+    def get_value(self, date_time: datetime, lat: float, lon: float) -> DWDValue:
         lat: float = round(lat, 4)
         lon: float = round(lon, 4)
         if self.stations.get(f"{lat};{lon}") is None:
-            return -1
+            return DWDValue()
         return self.stations[f"{lat};{lon}"].get_value(date_time)
 
     def get_unloaded_stations(self) -> List[DWDStation]:
@@ -155,8 +163,12 @@ class DWDStations:
     def show_unloaded_files(self):
         self.unloaded_files.show_warnings()
 
-    def get_stations(self) -> List[DWDStation]:
-        return list(self.stations.values())
+    def get_stations(self,
+                     lat_range: Tuple[float, float] = None,
+                     lon_range: Tuple[float, float] = None) -> List[DWDStation]:
+        return [station for station in self.stations.values()
+                if (lat_range is None or lat_range[0] <= station.lat <= lat_range[1])
+                and (lon_range is None or lon_range[0] <= station.lon <= lon_range[1])]
 
     def get_station(self, lat: float, lon: float) -> DWDStation | None:
         if not (self.stations.get(f"{lat};{lon}") is None):
@@ -195,6 +207,11 @@ def _read_id(filename: str) -> int:
         if not second_line:
             return -1
         return gFunc.int_def(second_line.split(";")[0], -1)
+
+
+def _get_info_str(dwd_station: DWDStation) -> str:
+    return (f"Id: {dwd_station.id} ,Lat: {dwd_station.lat} ,Lon: {dwd_station.lon} ,Loaded: {dwd_station.loaded} "
+            f",File: {dwd_station.filename}")
 
 
 def init_dwd_stations(path: str) -> DWDStations:
@@ -256,7 +273,8 @@ def init_dwd_stations(path: str) -> DWDStations:
     # collect all unloaded stations
     all_unloaded: list[DWDStation] = dwds.get_unloaded_stations()
     if len(all_unloaded) > 0:
-        clPrint.show_warning(f"init_dwd_stations(...): Some stations are unloaded, these station have been ignored. "
+        clPrint.show_warning(f"init_dwd_stations(...): Some stations are no longer up to date, "
+                             f"these station have been ignored. "
                              f"({len(all_unloaded)}/{len(dwds.stations)} are unloaded)")
         dwds.stderr = (f"{ewConst.WARNING_SOME_STATIONS_UNLOADED}: Some stations are unloaded "
                        f", please check here: [unloaded_files]")

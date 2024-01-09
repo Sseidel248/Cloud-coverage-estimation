@@ -41,11 +41,11 @@ class LatLonData:
         lat_match = re.search(lat_pattern, data)
         lon_match = re.search(lon_pattern, data)
         if lat_match and lon_match:
-            self.lat_min = convert_in_0_360(float(lat_match.group(1)))
-            self.lat_max = convert_in_0_360(float(lat_match.group(2)))
+            self.lat_min = gFunc.convert_in_0_360(float(lat_match.group(1)))
+            self.lat_max = gFunc.convert_in_0_360(float(lat_match.group(2)))
             self.delta_by = float(lat_match.group(3))
-            self.lon_min = convert_in_0_360(float(lon_match.group(1)))
-            self.lon_max = convert_in_0_360(float(lon_match.group(2)))
+            self.lon_min = gFunc.convert_in_0_360(float(lon_match.group(1)))
+            self.lon_max = gFunc.convert_in_0_360(float(lon_match.group(2)))
 
 
 class Grib2Data:
@@ -72,16 +72,16 @@ class Grib2Data:
                 and self.latlon_data.lon_max >= 0)
 
     def lat_in_range(self, lat):
-        lat = convert_in_180_180(lat)
-        norm_lat_min = convert_in_180_180(self.latlon_data.lat_min)
-        norm_lat_max = convert_in_180_180(self.latlon_data.lat_max)
-        return in_range(lat, norm_lat_min, norm_lat_max)
+        lat = gFunc.convert_in_180_180(lat)
+        norm_lat_min = gFunc.convert_in_180_180(self.latlon_data.lat_min)
+        norm_lat_max = gFunc.convert_in_180_180(self.latlon_data.lat_max)
+        return gFunc.in_range(lat, norm_lat_min, norm_lat_max)
 
     def lon_in_range(self, lon):
-        lon = convert_in_180_180(lon)
-        norm_lon_min = convert_in_180_180(self.latlon_data.lon_min)
-        norm_lon_max = convert_in_180_180(self.latlon_data.lon_max)
-        return in_range(lon, norm_lon_min, norm_lon_max)
+        lon = gFunc.convert_in_180_180(lon)
+        norm_lon_min = gFunc.convert_in_180_180(self.latlon_data.lon_min)
+        norm_lon_max = gFunc.convert_in_180_180(self.latlon_data.lon_max)
+        return gFunc.in_range(lon, norm_lon_min, norm_lon_max)
 
 
 class Grib2Result:
@@ -173,26 +173,6 @@ def _read_values(out_str: str) -> List[Grib2Result]:
     return g2_results
 
 
-def in_range(value: float | datetime, min_val: float | datetime, max_value: float | datetime) -> bool:
-    return min_val <= value <= max_value
-
-
-def convert_in_0_360(degree: float) -> float:
-    if -180 <= degree <= 180:
-        return degree if degree >= 0 else degree + 360
-    else:
-        normalized: float = degree % 360
-        return normalized if normalized != 0 else 0
-
-
-def convert_in_180_180(degree: float) -> float:
-    while degree > 180:
-        degree -= 360
-    while degree < -180:
-        degree += 360
-    return degree
-
-
 def load_folder(path: str) -> List[str]:
     # Loop through each *.bz2 archive and unpack it
     grib2_files: list[str] = []
@@ -223,8 +203,8 @@ def get_value(obj: Grib2Data, lat: float, lon: float) -> Grib2Result:
     if obj.grid_type == GridType.UNSTRUCTURED:
         g2r.set_stderr(ewConst.ERROR_UNSTRUCTURED_GRID, "Unstructured Grid")
         return g2r
-    conv_lat: float = convert_in_0_360(lat)
-    conv_lon: float = convert_in_0_360(lon)
+    conv_lat: float = gFunc.convert_in_0_360(lat)
+    conv_lon: float = gFunc.convert_in_0_360(lon)
     if not obj.lat_in_range(lat):
         g2r.set_stderr(ewConst.ERROR_LAT_OUT_OF_RANGE, "Lat out of Range")
         return g2r
@@ -248,8 +228,8 @@ def get_multiple_values(obj: Grib2Data, coords: List[Tuple[float, float]]) -> Li
     # get multiple value with wgrib2.exe
     command: str = f"{_WGRIB2_EXE} {obj.filename} -match {obj.param}"
     for lat, lon in coords:
-        conv_lat = convert_in_0_360(lat)
-        conv_lon = convert_in_0_360(lon)
+        conv_lat = gFunc.convert_in_0_360(lat)
+        conv_lon = gFunc.convert_in_0_360(lon)
         if not obj.lat_in_range(lat):
             cp.show_error(f"{ewConst.ERROR_UNSTRUCTURED_GRID}: Lat out of Range 'value={lat}'")
             continue

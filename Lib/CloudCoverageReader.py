@@ -19,9 +19,9 @@ from datetime import datetime
 
 # TODO: Modell-Parameter in separate *.py dateien auslagern
 class ModelType(Enum):
-    UNKNOWN = 0
-    ICON_D2 = 1
-    ICON_EU = 2
+    UNKNOWN: int = 0
+    ICON_D2: int = 1
+    ICON_EU: int = 2
 
 
 class CloudCoverData(g2r.Grib2Data):
@@ -128,21 +128,21 @@ class CloudCoverDatas:
         self.too_far_forecast_files.show_warnings()
 
     def datetime_in_range(self, date_time: datetime) -> bool:
-        return g2r.in_range(date_time, self.min_datetime, self.max_datetime)
+        return gFunc.in_range(date_time, self.min_datetime, self.max_datetime)
 
     def lat_in_range(self, lat: float) -> bool:
         if self.model_type == ModelType.ICON_D2:
-            return g2r.in_range(lat, mConst.ICON_D2_LAT_MIN, mConst.ICON_D2_LAT_MAX)
+            return gFunc.in_range(lat, mConst.ICON_D2_LAT_MIN, mConst.ICON_D2_LAT_MAX)
         elif self.model_type == ModelType.ICON_EU:
-            return g2r.in_range(lat, mConst.ICON_EU_LAT_MIN, mConst.ICON_EU_LAT_MAX)
+            return gFunc.in_range(lat, mConst.ICON_EU_LAT_MIN, mConst.ICON_EU_LAT_MAX)
         else:
             return False
 
     def lon_in_range(self, lon: float) -> bool:
         if self.model_type == ModelType.ICON_D2:
-            return g2r.in_range(lon, mConst.ICON_D2_LON_MIN, mConst.ICON_D2_LON_MAX)
+            return gFunc.in_range(lon, mConst.ICON_D2_LON_MIN, mConst.ICON_D2_LON_MAX)
         elif self.model_type == ModelType.ICON_EU:
-            return g2r.in_range(lon, mConst.ICON_EU_LON_MIN, mConst.ICON_EU_LON_MAX)
+            return gFunc.in_range(lon, mConst.ICON_EU_LON_MIN, mConst.ICON_EU_LON_MAX)
         else:
             return False
 

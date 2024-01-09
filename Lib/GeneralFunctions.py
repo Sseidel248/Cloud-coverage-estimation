@@ -33,3 +33,23 @@ def int_def(text: str, default: int) -> int:
         return int(text)
     except ValueError:
         return default
+
+
+def in_range(value: float | datetime, min_val: float | datetime, max_value: float | datetime) -> bool:
+    return min_val <= value <= max_value
+
+
+def convert_in_0_360(degree: float) -> float:
+    if -180 <= degree <= 180:
+        return degree if degree >= 0 else degree + 360
+    else:
+        normalized: float = degree % 360
+        return normalized if normalized != 0 else 0
+
+
+def convert_in_180_180(degree: float) -> float:
+    while degree > 180:
+        degree -= 360
+    while degree < -180:
+        degree += 360
+    return degree
