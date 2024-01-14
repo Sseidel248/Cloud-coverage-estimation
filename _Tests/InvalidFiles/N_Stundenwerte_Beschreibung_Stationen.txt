@@ -1,2 +1,0 @@
-Stations_id von_datum bis_datum Stationshoehe geoBreite geoLaenge Stationsname Bundesland
------------ --------- --------- ------------- --------- --------- ----------------------------------------- ----------
