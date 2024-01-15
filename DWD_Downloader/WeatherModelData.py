@@ -38,7 +38,7 @@ def _create_modeldata(url: str, file: str, target_path: str) -> htmlGrab.Downloa
         return htmlGrab.DownloadData(url, file, target_path)
 
 
-def init_weathermodel_data(model_name: str, target_path: str) -> List[htmlGrab.DownloadData]:
+def get_dwd_model_data_links(model_name: str, target_path: str) -> List[htmlGrab.DownloadData]:
     """
 
     :param model_name:

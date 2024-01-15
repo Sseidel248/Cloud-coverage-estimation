@@ -40,22 +40,19 @@ current_year_month = f"{current_year:04d}{current_month:02d}"
 
 # TODO: Insert DocStrings for public functions ("""Descriptive text""") under the function name
 def _create_stationdata(url: str, file: str, target_path: str) -> htmlGrab.DownloadData:
-    if (CLOUDINESS not in url) and (CLOUD_TYPE not in url):
-        return htmlGrab.DownloadData("", "", "")
-    else:
-        return htmlGrab.DownloadData(url, file, target_path)
+    return htmlGrab.DownloadData(url, file, target_path)
 
 
-def init_weatherstation_data(param_type: str, target_path: str) -> List[htmlGrab.DownloadData]:
+def get_dwd_html_links(param_type: str, target_path: str) -> List[htmlGrab.DownloadData]:
     """
     Hallo Welt
     :param param_type:
     :param target_path:
     :return:
     """
-    if param_type != PARAM_CLOUDINESS and param_type != PARAM_CLOUD_TYPE:
-        print(f"Invalid model name. Please only use '{PARAM_CLOUDINESS}' or '{PARAM_CLOUD_TYPE}'.")
-        return []
+    # if param_type != PARAM_CLOUDINESS and param_type != PARAM_CLOUD_TYPE:
+    #     print(f"Invalid model name. Please only use '{PARAM_CLOUDINESS}' or '{PARAM_CLOUD_TYPE}'.")
+    #     return []
     # Create target directory if it does not yet exist
     date_now = datetime.now().strftime('%Y%m%d')
     target_path = os.path.join(target_path, date_now)
@@ -63,10 +60,11 @@ def init_weatherstation_data(param_type: str, target_path: str) -> List[htmlGrab
         os.makedirs(target_path)
 
     # Create the required download path
-    if param_type == PARAM_CLOUDINESS:
-        url_html = f"{MAIN_URL_OBSERV_GERMAN}{CLOUDINESS}{RECENT}"
-    else:
-        url_html = f"{MAIN_URL_OBSERV_GERMAN}{CLOUD_TYPE}{RECENT}"
+    # if param_type == PARAM_CLOUDINESS:
+    #     url_html = f"{MAIN_URL_OBSERV_GERMAN}{CLOUDINESS}{RECENT}"
+    # else:
+    #     url_html = f"{MAIN_URL_OBSERV_GERMAN}{CLOUD_TYPE}{RECENT}"
+    url_html = f"{MAIN_URL_OBSERV_GERMAN}{param_type}{RECENT}"
 
     link_texts = htmlGrab.get_html_links_as_list(url_html)
 
@@ -77,7 +75,7 @@ def init_weatherstation_data(param_type: str, target_path: str) -> List[htmlGrab
         if link_idx in [0]:
             continue
         # Search for the link containing numbers and "N_"
-        match = re.search(r'N_|CS_|\d+', link_text)
+        match = re.search(r'\.txt$|\.zip$', link_text)
         if match:
             file = match.string
             url = f"{url_html}{file}"

@@ -52,67 +52,50 @@ class DWDStations:
                 self._load_dwd_txt(dwd_txt)
         self.df.sort_values(by=[COL_LOADED, COL_DATE_START, COL_DATE_END])
 
-    def get_dwd_value(self, date_time: datetime, lat: float, lon: float) -> Tuple[float, str]:
+    # TODO: Zeile aus der Datei laden und exportieren
+    def get_dwd_value(self, date_time: datetime, lat: float, lon: float) -> DataFrame:
         lat: float = round(lat, 4)
         lon: float = round(lon, 4)
         row: DataFrame = self.df.loc[(self.df[COL_LAT] == lat) & (self.df[COL_LON] == lon)]
         if row.empty:
-            return -1, ""
+            return DataFrame()
         rounded_datetime: datetime = gFunc.round_to_nearest_hour(date_time)
-        datetime_str: str = rounded_datetime.strftime("%Y%m%d%H")
         filename: str = row[COL_DWD_FILENAME].iloc[0]
+        height: float = float(row[COL_HEIGHT].iloc[0])
         if os.path.exists(filename):
-            with open(filename, 'r') as content:
-                for line in content:
-                    if datetime_str in line:
-                        parts: list[str] = line.split(';')
-                        if len(parts) > 4:
-                            measurement_type = get_measurment_type(parts[3].strip())
-                            value: float = float(parts[4].strip())
-                            if value != -1:
-                                value = value / 8 * 100
-                            return value, measurement_type
-        return -1, ""
+            df_file = read_file_to_df(filename)
+            matching_row = df_file[df_file[COL_DWD_MESS_DATUM] == rounded_datetime].copy()
+            if not matching_row.empty:
+                matching_row[COL_LAT] = lat
+                matching_row[COL_LON] = lon
+                matching_row[COL_HEIGHT] = height
+                return matching_row
+        return DataFrame()
 
+    # TODO: Zeilen aus der Datei laden und exportieren
     def get_dwd_multiple_value(self, date_times: DataFrame, lat: float, lon: float) -> DataFrame:
-        columns = [COL_STATION_ID, COL_HEIGHT, COL_DATE_VALUE, COL_LAT, COL_LON, COL_DWD_VALUE, COL_DWD_MEASUREMENT_TYPE]
-        datatypes = {
-            COL_STATION_ID: "int",
-            COL_HEIGHT: "float",
-            COL_DATE_VALUE: "datetime64[ns]",
-            COL_LAT: "float",
-            COL_LON: "float",
-            COL_DWD_VALUE: "int",
-            COL_DWD_MEASUREMENT_TYPE: "str"
-        }
-        values: DataFrame = DataFrame(columns=columns).astype(datatypes)
         lat: float = round(lat, 4)
         lon: float = round(lon, 4)
         row: DataFrame = self.df.loc[(self.df[COL_LAT] == lat) & (self.df[COL_LON] == lon)]
         if row.empty:
-            return values
+            return DataFrame()
         date_times = date_times.copy()
         first_col_name = date_times.columns[0]
         date_times["Rounded_Datetime"] = date_times[first_col_name].apply(gFunc.round_to_nearest_hour)
         filename: str = row[COL_DWD_FILENAME].iloc[0]
-        station_id: int = int(row[COL_STATION_ID].iloc[0])
         height: float = float(row[COL_HEIGHT].iloc[0])
         if os.path.exists(filename):
             df_file = read_file_to_df(filename)
-            matching_rows = df_file[df_file[COL_MESS_DATUM].isin(date_times["Rounded_Datetime"])]
+            matching_rows = df_file[df_file[COL_DWD_MESS_DATUM].isin(date_times["Rounded_Datetime"])].copy()
             if not matching_rows.empty:
-                values[COL_DATE_VALUE] = matching_rows[COL_MESS_DATUM]
-                values[COL_LAT] = lat
-                values[COL_LON] = lon
-                values[COL_STATION_ID] = station_id
-                values[COL_HEIGHT] = height
-                values[COL_DWD_VALUE] = matching_rows[COL_CLCT_VALUE]
-                values[COL_DWD_MEASUREMENT_TYPE] = matching_rows[COL_MEASUREMENT_TYPE].apply(get_measurment_type)
-        return values
+                matching_rows[COL_LAT] = lat
+                matching_rows[COL_LON] = lon
+                matching_rows[COL_HEIGHT] = height
+                return matching_rows
+        return DataFrame()
 
     def get_unloaded_stations(self) -> DataFrame:
         return self.df.loc[self.df[COL_LOADED] == False]
-        # return self.unloaded_files.unloaded_dwdstations
 
     def get_stations(self,
                      lat_range: Tuple[float, float] = None,
@@ -223,7 +206,13 @@ class DWDStations:
 
 
 def read_file_to_df(filename: str) -> DataFrame:
-    df = pd.read_csv(filename, sep=';', parse_dates=[COL_MESS_DATUM], date_format="%Y%m%d%H")
+    df = pd.read_csv(filename, sep=';', header=None)
+    # remove empty spaces in headers
+    header = df.iloc[0].apply(lambda x: x.strip())
+    df.columns = header
+    df = df.drop(0)
+    # parse datetime column
+    df[COL_DWD_MESS_DATUM] = pd.to_datetime(df[COL_DWD_MESS_DATUM], format="%Y%m%d%H")
     return df
 
 

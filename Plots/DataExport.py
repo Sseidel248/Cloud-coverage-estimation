@@ -26,7 +26,13 @@ def get_usefull_stations(df_dwd: DataFrame, model_datetimes: Series) -> DataFram
     return filtered_df.reset_index()
 
 
-def export_as_csv(filename: str, dwd_datas: DWDStations, model_datas: Grib2Datas, model: str, param: str):
+def parse_dwd_types(df: DataFrame) -> DataFrame:
+    df[COL_STATION_ID] = df[COL_STATION_ID].astype(str)
+    df[COL_DWD_VALUE] = df[COL_DWD_VALUE].astype(int)
+    return df
+
+
+def export_as_csv(filename: str, dwd_datas: DWDStations, model_datas: Grib2Datas, model_str: str, param_str: str):
     coords = dwd_datas.get_station_locations()
     model_dates = model_datas.df[[COL_FCST_DATE]]
 
@@ -37,25 +43,33 @@ def export_as_csv(filename: str, dwd_datas: DWDStations, model_datas: Grib2Datas
         temp_df = dwd_datas.get_dwd_multiple_value(model_dates, lat, lon)
         temp_dfs.append(temp_df)
         coords_list.append((lat, lon))
-    val1 = pd.concat(temp_dfs, ignore_index=True)
-    val1 = val1[val1[COL_DWD_VALUE] > -1]
+    vals_dwd = pd.concat(temp_dfs, ignore_index=True)
+    vals_dwd = parse_dwd_types(vals_dwd)
+    # remove invalid dwd values
+    vals_dwd = vals_dwd[vals_dwd[COL_DWD_VALUE] > -1]
 
     temp_dfs.clear()
     for date in tqdm(model_dates[COL_FCST_DATE], total=len(model_dates), desc="Processing Model Values"):
-        temp_df = model_datas.get_multiple_values(model, param, date, coords_list)
+        temp_df = model_datas.get_multiple_values(model_str, param_str, date, coords_list)
         temp_dfs.append(temp_df)
-    val2 = pd.concat(temp_dfs, ignore_index=True)
-    val2 = val2[val2[COL_MODEL_VALUE] > -1]
+    vals_model = pd.concat(temp_dfs, ignore_index=True)
+    # remove invalid model values
+    vals_model = vals_model[vals_model[COL_MODEL_VALUE] > -1]
 
     print("Export - Data merging")
-    val1.sort_values(by=[COL_DATE, COL_LAT, COL_LON], inplace=True)
-    val2.sort_values(by=[COL_DATE, COL_LAT, COL_LON], inplace=True)
+    # renaming cols
+    vals_dwd.rename(columns={COL_DWD_MESS_DATUM: COL_DATE,
+                             COL_STATION_ID: dc.STATION_ID}, inplace=True)
+    vals_dwd.sort_values(by=[COL_DATE, COL_LAT, COL_LON], inplace=True)
+    vals_model.sort_values(by=[COL_DATE, COL_LAT, COL_LON], inplace=True)
 
-    merged_df = pd.merge(val1, val2, on=[COL_DATE, COL_LAT, COL_LON], how='left')
-    merged_df = merged_df[[COL_DATE, COL_LAT, COL_LON, COL_MODEL_VALUE, COL_DWD_VALUE, COL_STATION_ID, COL_HEIGHT,
-                           COL_DWD_MEASUREMENT_TYPE]]
-    merged_df.sort_values(by=[COL_STATION_ID, COL_DATE], inplace=True)
+    merged_df = pd.merge(vals_dwd, vals_model, on=[COL_DATE, COL_LAT, COL_LON], how='left')
+    merged_df.sort_values(by=[dc.STATION_ID, COL_DATE], inplace=True)
     merged_df[COL_DWD_VALUE] = merged_df[COL_DWD_VALUE] / 8 * 100
+
+    # remove DWD's "eor" column if exist
+    if "eor" in merged_df.columns:
+        merged_df.drop(columns="eor", inplace=True)
 
     merged_df.to_csv(filename, sep=";", decimal=",", index=False)
     print(f"Export - Finished, Location:'{os.path.abspath(filename)}'")

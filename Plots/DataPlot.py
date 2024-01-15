@@ -7,6 +7,7 @@ import os
 import matplotlib.pyplot as plt
 import pandas as pd
 from Lib.Consts import DataExportConsts as dc
+from Lib.Consts import DWDReaderConsts as dwdc
 import DataAnalysis as da
 from pandas import DataFrame
 
@@ -66,7 +67,9 @@ def show_metrics(df: DataFrame, model: str):
 def load(filename: str) -> DataFrame:
     if not os.path.exists(filename):
         raise FileExistsError
-    return pd.read_csv(filename, sep=";", decimal=",")
+    df = pd.read_csv(filename, sep=";", decimal=",")
+    df.rename(columns={dwdc.COL_DWD_VALUE: dc.STATION_VALUE}, inplace=True)
+    return df
 
 
 # df_metric = da.get_error_metric(df)
