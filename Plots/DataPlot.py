@@ -38,8 +38,8 @@ def show_metrics(df: DataFrame, model: str):
     station_error = da.get_abs_error_each_station(df)
     me_mae_rmse = da.get_me_mae_rmse(df)
     print(f"\n~~~{model}~~~\n")
-    print(f"Mittlere abs. Fehler (ME): {me_mae_rmse[0]:.2f}% Bedeckungsgrad")
-    print(f"Mittlerer Fehler (MAE): {me_mae_rmse[1]:.2f}% Bedeckungsgrad")
+    print(f"Mittlerer Fehler (ME): {me_mae_rmse[0]:.2f}% Bedeckungsgrad")
+    print(f"Mittlere abs. Fehler (MAE): {me_mae_rmse[1]:.2f}% Bedeckungsgrad")
     print(f"Mittlere quad. Fehler (RMSE): {me_mae_rmse[2]:.2f}% Bedeckungsgrad")
     print(f"{len(da.filter_dataframe_by_value(df, dc.ABS_ERROR, 5, False)) / len(df) * 100:.2f}% "
           f"der Daten haben einen Fehler von < 5% Bedeckungsgrad.")
