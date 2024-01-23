@@ -163,3 +163,4 @@ cython_debug/
 extracted_station_files
 *.csv
 *.xlsx
+/Lib/*.grib2

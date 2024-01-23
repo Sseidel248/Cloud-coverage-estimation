@@ -50,20 +50,12 @@ def get_dwd_html_links(param_type: str, target_path: str) -> List[htmlGrab.Downl
     :param target_path:
     :return:
     """
-    # if param_type != PARAM_CLOUDINESS and param_type != PARAM_CLOUD_TYPE:
-    #     print(f"Invalid model name. Please only use '{PARAM_CLOUDINESS}' or '{PARAM_CLOUD_TYPE}'.")
-    #     return []
     # Create target directory if it does not yet exist
     date_now = datetime.now().strftime('%Y%m%d')
-    target_path = os.path.join(target_path, date_now)
+    target_path = os.path.join(target_path, param_type, date_now)
     if not os.path.exists(target_path):
         os.makedirs(target_path)
 
-    # Create the required download path
-    # if param_type == PARAM_CLOUDINESS:
-    #     url_html = f"{MAIN_URL_OBSERV_GERMAN}{CLOUDINESS}{RECENT}"
-    # else:
-    #     url_html = f"{MAIN_URL_OBSERV_GERMAN}{CLOUD_TYPE}{RECENT}"
     url_html = f"{MAIN_URL_OBSERV_GERMAN}{param_type}{RECENT}"
 
     link_texts = htmlGrab.get_html_links_as_list(url_html)

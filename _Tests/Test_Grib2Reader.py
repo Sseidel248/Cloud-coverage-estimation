@@ -2,7 +2,7 @@ import unittest
 import _Tests.testConsts as tc
 from datetime import datetime
 from Lib.Grib2Reader import Grib2Datas
-from Lib.Consts.Grib2ReaderConsts import *
+from Lib.IOConsts import *
 
 
 class TestGrib2Reader(unittest.TestCase):

@@ -48,7 +48,7 @@ def get_html_links_as_list(url_html: str) -> List[str]:
 
 
 def download_data(download_list: List[DownloadData]):
-    for data in tqdm(download_list, total=len(download_list), desc="Downloading files:"):
+    for data in tqdm(download_list, total=len(download_list), desc="Downloading files"):
         if data.url == "":
             continue
         response = requests.get(data.url)

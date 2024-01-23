@@ -2,41 +2,41 @@ import re
 import os
 import bz2
 import subprocess
-
 import pandas as pd
-
 import Lib.GeneralFunctions as gFunc
-import numpy as np
 from typing import List, Tuple
 from pandas import DataFrame, Series
 from datetime import datetime, timedelta
-from Lib.Consts.Grib2ReaderConsts import *
+from Lib.IOConsts import *
+from tqdm import tqdm
 
+# Wgrib2 file
 _WGRIB2_EXE: str = f"{os.path.dirname(os.path.abspath(__file__))}\\wgrib2\\wgrib2.exe"
 
 
 class Grib2Datas:
     def __init__(self):
-        cols = [COL_MODEL, COL_PARAM, COL_DATE, COL_FCST_MIN, COL_FCST_DATE, COL_GRIB2_FILENAME]
+        cols = [COL_MODEL, COL_PARAM, COL_DATE, COL_MODEL_FCST_MIN, COL_MODEL_FCST_DATE, COL_MODEL_FILENAME]
         datatypes = {
             COL_MODEL: 'str',
             COL_PARAM: 'str',
             COL_DATE: 'datetime64[ns]',
-            COL_FCST_MIN: 'int',
-            COL_FCST_DATE: 'datetime64[ns]',
-            COL_GRIB2_FILENAME: 'str'
+            COL_MODEL_FCST_MIN: 'int',
+            COL_MODEL_FCST_DATE: 'datetime64[ns]',
+            COL_MODEL_FILENAME: 'str'
         }
         self.df: DataFrame = DataFrame(columns=cols).astype(datatypes)
         self.df_invalid: DataFrame = DataFrame(columns=cols).astype(datatypes)
-        cols = [COL_MODEL, COL_PARAM, COL_LAT_START, COL_LAT_END, COL_LON_START, COL_LON_END, COL_LATLON_DELTA]
+        cols = [COL_MODEL, COL_PARAM, COL_MODEL_LAT_START, COL_MODEL_LAT_END, COL_MODEL_LON_START, COL_MODEL_LON_END,
+                COL_MODEL_LATLON_DELTA]
         datatypes = {
             COL_MODEL: 'str',
             COL_PARAM: 'str',
-            COL_LAT_START: 'float',
-            COL_LAT_END: 'float',
-            COL_LON_START: 'float',
-            COL_LON_END: 'float',
-            COL_LATLON_DELTA: 'float'
+            COL_MODEL_LAT_START: 'float',
+            COL_MODEL_LAT_END: 'float',
+            COL_MODEL_LON_START: 'float',
+            COL_MODEL_LON_END: 'float',
+            COL_MODEL_LATLON_DELTA: 'float'
         }
         self.df_models: DataFrame = DataFrame(columns=cols).astype(datatypes)
 
@@ -48,7 +48,7 @@ class Grib2Datas:
         grib2_files = gFunc.get_files(path, ".grib2")
         if len(grib2_files) == 0:
             raise FileNotFoundError(f"No *.grib2 Files exist in '{path}'")
-        for grib2 in grib2_files:
+        for grib2 in tqdm(grib2_files, total=len(grib2_files), desc="Loading Grib2-Files"):
             self._load_file(os.path.abspath(grib2))
         self._data_validation()
         self.df = self.df.sort_values(by=[COL_MODEL, COL_DATE])
@@ -58,58 +58,35 @@ class Grib2Datas:
 
     def get_used_datetimes(self, model: str = '') -> Series:
         if model != '':
-            return self.df[self.df[COL_MODEL] == model][COL_FCST_DATE]
+            return self.df[self.df[COL_MODEL] == model][COL_MODEL_FCST_DATE]
         else:
-            return self.df[COL_FCST_DATE]
+            return self.df[COL_MODEL_FCST_DATE]
 
     def get_datetime_range(self, model: str = "") -> (datetime, datetime):
         return self._datetime_start(model), self._datetime_end(model)
 
     def exist_datetime(self, date_time: datetime, model: str = "") -> bool:
         if model == "":
-            return not self.df[self.df[COL_FCST_DATE] == date_time].empty
+            return not self.df[self.df[COL_MODEL_FCST_DATE] == date_time].empty
         return not self.df[(self.df[COL_MODEL] == model) &
-                           (self.df[COL_FCST_DATE] == date_time)].empty
+                           (self.df[COL_MODEL_FCST_DATE] == date_time)].empty
 
-    def get_value(self, model: str, param: str, date_time: datetime, lat: float, lon: float) -> float:
-        closest_date_time: datetime = self._get_closest_date(date_time)
-        if not self.exist_datetime(closest_date_time, model):
-            raise ValueError(f"Datetime '{str(date_time)}' not exist in dataframe.")
-        if not self._lat_in_range(lat, model):
-            raise ValueError(f"Lat. '{str(lat)}' not in range.")
-        if not self._lon_in_range(lon, model):
-            raise ValueError(f"Lon. '{str(lon)}' not in range.")
-        if not self._exist_param(param, model):
-            raise ValueError(f"Parameter '{param}' not exist for this model '{model}'.")
-        rounded_date_time: datetime = gFunc.round_to_nearest_hour(date_time)
-        time_hour_delta: float = gFunc.hours_difference(rounded_date_time, closest_date_time)
-        if time_hour_delta > 1:
-            return -1
-        founded_df = self.df[(self.df[COL_MODEL] == model) &
-                             (self.df[COL_PARAM] == param) &
-                             (self.df[COL_FCST_DATE] == closest_date_time)]
-        filename = founded_df[COL_GRIB2_FILENAME].iloc[0]
-        conv_lat: float = gFunc.convert_in_0_360(lat)
-        conv_lon: float = gFunc.convert_in_0_360(lon)
-        command: str = f"{_WGRIB2_EXE} {filename} -match {param} -lon {str(conv_lon)} {str(conv_lat)}"
-        result = subprocess.run(command, capture_output=True, text=True)
-        match = re.search(r"val=(\d+\.?\d+)", result.stdout)
-        if match:
-            return float(match.group(1))
-        return -1
+    def get_value(self, model: str, param: str, date_time: datetime, lat: float, lon: float) -> DataFrame:
+        return self.get_multiple_values(model, param, date_time, [(lat, lon)])
 
     def get_multiple_values(self, model: str, param: str, date_time: datetime,
                             coords: List[Tuple[float, float]]) -> DataFrame:
-        cols = [COL_DATE, COL_LAT, COL_LON, COL_MODEL_VALUE]
-        lat_values, lon_values, value_values, date_times = [], [], [], []
+        cols = [COL_DATE, COL_MODEL_FCST_MIN, COL_LAT, COL_LON, param]
+        lat_values, lon_values, value_values, date_times, fcst_min_values = [], [], [], [], []
         values: DataFrame = DataFrame(columns=cols)
         closest_date_time: datetime = self._get_closest_date(date_time)
         founded_df = self.df[(self.df[COL_MODEL] == model) &
                              (self.df[COL_PARAM] == param) &
-                             (self.df[COL_FCST_DATE] == closest_date_time)]
+                             (self.df[COL_MODEL_FCST_DATE] == closest_date_time)]
         if founded_df.empty:
             return values
-        filename = founded_df[COL_GRIB2_FILENAME].iloc[0]
+        filename = founded_df[COL_MODEL_FILENAME].iloc[0]
+        fcst_min = founded_df[COL_MODEL_FCST_MIN].iloc[0]
 
         command: str = f"{_WGRIB2_EXE} {filename} -match {param}"
         for lat, lon in coords:
@@ -127,26 +104,30 @@ class Grib2Datas:
             lat_values.append(lat)
             lon_values.append(lon)
             value_values.append(value)
+            fcst_min_values.append(fcst_min)
+        # for Performance - fill DataFrame outside loop
         if len(lat_values) > 0:
             values = pd.DataFrame({COL_DATE: date_times,
+                                   COL_MODEL_FCST_MIN: fcst_min_values,
                                    COL_LAT: lat_values,
                                    COL_LON: lon_values,
-                                   COL_MODEL_VALUE: value_values}, columns=cols)
+                                   param: value_values
+                                   }, columns=cols)
         return values
 
     def _datetime_start(self, model: str = "") -> datetime:
         if model == "":
-            return self.df[COL_FCST_DATE].min()
+            return self.df[COL_MODEL_FCST_DATE].min()
         else:
             filtered_df = self.df[self.df[COL_MODEL] == model]
-            return filtered_df[COL_FCST_DATE].min()
+            return filtered_df[COL_MODEL_FCST_DATE].min()
 
     def _datetime_end(self, model: str = "") -> datetime:
         if model == "":
-            return self.df[COL_FCST_DATE].max()
+            return self.df[COL_MODEL_FCST_DATE].max()
         else:
             filtered_df = self.df[self.df[COL_MODEL] == model]
-            return filtered_df[COL_FCST_DATE].max()
+            return filtered_df[COL_MODEL_FCST_DATE].max()
 
     def _exist_model(self, model: str) -> bool:
         return not self.df_models[self.df_models[COL_MODEL] == model].empty
@@ -161,7 +142,7 @@ class Grib2Datas:
             return False
         else:
             filtered_model = self.df_models[self.df_models[COL_MODEL] == model]
-            return ((filtered_model[COL_LAT_START].iloc[0] <= lat <= filtered_model[COL_LAT_END].iloc[0])
+            return ((filtered_model[COL_MODEL_LAT_START].iloc[0] <= lat <= filtered_model[COL_MODEL_LAT_END].iloc[0])
                     and not filtered_model.empty)
 
     def _lon_in_range(self, lon: float, model: str) -> bool:
@@ -169,17 +150,17 @@ class Grib2Datas:
             return False
         else:
             filtered_model = self.df_models[self.df_models[COL_MODEL] == model]
-            return ((filtered_model[COL_LON_START].iloc[0] <= lon <= filtered_model[COL_LON_END].iloc[0])
+            return ((filtered_model[COL_MODEL_LON_START].iloc[0] <= lon <= filtered_model[COL_MODEL_LON_END].iloc[0])
                     and not filtered_model.empty)
 
     def _get_closest_date(self, date_time: datetime) -> datetime:
-        differences = (self.df[COL_FCST_DATE] - date_time).abs()
+        differences = (self.df[COL_MODEL_FCST_DATE] - date_time).abs()
         closest_date_index = differences.idxmin()
-        return self.df.loc[closest_date_index, COL_FCST_DATE]
+        return self.df.loc[closest_date_index, COL_MODEL_FCST_DATE]
 
     def _data_validation(self):
-        self.df_invalid = self.df[self.df[COL_FCST_MIN] > 120]
-        self.df = self.df[self.df[COL_FCST_MIN] <= 120]
+        self.df_invalid = self.df[self.df[COL_MODEL_FCST_MIN] > 120]
+        self.df = self.df[self.df[COL_MODEL_FCST_MIN] <= 120]
         self.df_models = self.df_models.drop_duplicates()
 
     def _load_file(self, work_file: str):
@@ -191,24 +172,25 @@ class Grib2Datas:
                 # index 0 = full match of complete string
                 date: datetime = datetime.strptime(match.group(1), "%Y%m%d%H")
                 # if not found, then None
-                if match.group(4) == "anl":
+                submatch = re.search(r":(\d+) min fcst::", result.stdout)
+                if submatch:
+                    fcst_minutes = int(submatch.group(1))
+                    fcst_date = date + timedelta(minutes=fcst_minutes)
+                else:
                     fcst_minutes = 0
                     fcst_date = date
-                else:
-                    fcst_minutes = int(match.group(3))
-                    fcst_date = date + timedelta(minutes=fcst_minutes)
                 new_row = {
-                    COL_MODEL: _get_model(float(match.group(7))),
+                    COL_MODEL: _get_model(float(match.group(5))),
                     COL_DATE: date,
-                    COL_FCST_MIN: fcst_minutes,
-                    COL_FCST_DATE: fcst_date,
+                    COL_MODEL_FCST_MIN: fcst_minutes,
+                    COL_MODEL_FCST_DATE: fcst_date,
                     COL_PARAM: match.group(2),
-                    COL_LAT_START: gFunc.convert_in_180_180(float(match.group(5))),
-                    COL_LAT_END: gFunc.convert_in_180_180(float(match.group(6))),
-                    COL_LATLON_DELTA: float(match.group(7)),
-                    COL_LON_START: gFunc.convert_in_180_180(float(match.group(8))),
-                    COL_LON_END: gFunc.convert_in_180_180(float(match.group(9))),
-                    COL_GRIB2_FILENAME: work_file
+                    COL_MODEL_LAT_START: gFunc.convert_in_180_180(float(match.group(3))),
+                    COL_MODEL_LAT_END: gFunc.convert_in_180_180(float(match.group(4))),
+                    COL_MODEL_LATLON_DELTA: float(match.group(5)),
+                    COL_MODEL_LON_START: gFunc.convert_in_180_180(float(match.group(6))),
+                    COL_MODEL_LON_END: gFunc.convert_in_180_180(float(match.group(7))),
+                    COL_MODEL_FILENAME: work_file
                 }
                 self.df.loc[len(self.df)] = new_row
                 self.df_models.loc[len(self.df_models)] = new_row
@@ -237,3 +219,8 @@ def _extract_bz2_archives(bz2_archives: List[str]):
                 for content in archiv:
                     extracted_file.write(content)
 
+
+# grib2_datas = Grib2Datas()
+# grib2_datas.load_folder("..\\DWD_Downloader\\WeatherData\\icon_d2")
+# print(grib2_datas.get_multiple_values(MODEL_ICON_D2, CLOUD_COVER, datetime(2023, 11, 29, 18), [(53, 13)]))
+# print(grib2_datas.get_value(MODEL_ICON_D2, CLOUD_COVER, datetime(2023, 11, 29, 18), 53, 13))

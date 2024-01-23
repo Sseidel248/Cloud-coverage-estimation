@@ -21,8 +21,6 @@ from typing import List
 
 
 # local consts
-TARGET_PATH_ICON_D2 = "WeatherData/ICON_D2/"
-TARGET_PATH_ICON_EU = "WeatherData/ICON_EU/"
 MAIN_URL_ICON_D2 = "https://opendata.dwd.de/weather/nwp/icon-d2/grib/"
 MAIN_URL_ICON_EU = "https://opendata.dwd.de/weather/nwp/icon-eu/grib/"
 CLOUD_COVER_TOTAL = "clct/"
@@ -50,6 +48,7 @@ def get_dwd_model_data_links(model_name: str, target_path: str) -> List[htmlGrab
         return []
 
     # Create target directory if it does not yet exist
+    target_path = os.path.join(target_path, model_name)
     if not os.path.exists(target_path):
         os.makedirs(target_path)
 
@@ -70,9 +69,6 @@ def get_dwd_model_data_links(model_name: str, target_path: str) -> List[htmlGrab
         for link_idx, link_text in enumerate(link_texts):
             if count == 3:
                 break
-            # First two lines are only parent directory and the index file
-            if link_idx in [0, 1]:
-                continue
             # Find the link in which numbers = date yyyymmdd and "lat-lon" appears
             match = re.search(r'lat-lon.*?\d+', link_text)
             if match:
