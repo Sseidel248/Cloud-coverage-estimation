@@ -53,8 +53,8 @@ COL_MAE: str = "MAE"
 COL_RMSE: str = "RMSE"
 
 # Constants of the models
-MODEL_ICON_D2: str = "icon-d2"
-MODEL_ICON_EU: str = "icon-eu"
+MODEL_ICON_D2: str = "ICON-D2"
+MODEL_ICON_EU: str = "ICON-EU"
 MODEL_UNKNOWN: str = "unknown"
 MODEL_UNSTRUCTURED: str = "unstructured"
 ICON_EU_LAT_MIN: float = 29.5

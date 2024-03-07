@@ -7,7 +7,6 @@ Description:
 import os
 import zipfile
 import re
-import Lib.ColoredPrint as cp
 import Lib.GeneralFunctions as gFunc
 import pandas as pd
 import numpy as np
@@ -16,6 +15,7 @@ from typing import Tuple, List
 from pandas import DataFrame
 from Lib.IOConsts import *
 from tqdm import tqdm
+from colorama import Fore, Style
 
 
 class CorruptedInitFileError(Exception):
@@ -167,8 +167,10 @@ class DWDStations:
 
         row_index = self.df.index[self.df[COL_STATION_ID] == a_id].tolist()
         if not row_index:
-            cp.show_warning(f"\nStation ID '{a_id}' does not exist. Maybe the initialization file for the file "
-                            f"'{filename}' was not loaded or the station ID does not exist in the initialization file.")
+            print(Fore.YELLOW +
+                  f"\nStation ID '{a_id}' does not exist. Maybe the initialization file for the file "
+                  f"'{filename}' was not loaded or the station ID does not exist in the initialization file."
+                  + Style.RESET_ALL)
             return False
 
         start_date = _read_min_date(filename)
@@ -269,7 +271,7 @@ def read_file_to_df(filename: str) -> DataFrame:
 def extract_dwd_archives(path: str):
     # Collect all zip-files (dwd data-files)
     zip_files: list[str] = gFunc.get_files(path, ".zip")
-    for zip_file in tqdm(zip_files, total=len(zip_files), desc="Extract dwd files"):
+    for zip_file in tqdm(zip_files, total=len(zip_files), desc="Extract DWD-Files"):
         # open zip file
         with zipfile.ZipFile(zip_file, 'r') as a_zip:
             directory: str = os.path.dirname(zip_file)
@@ -278,8 +280,9 @@ def extract_dwd_archives(path: str):
                 if DATA_FILE_MARKER.lower() in name.lower():
                     data_filename: str = os.path.join(os.path.abspath(directory), name)
                     if not os.path.exists(data_filename):
-                        # extract data file
+                        # extract data file and break inner loop
                         a_zip.extract(name, os.path.abspath(directory))
+                        break
 
 
 def _read_id(filename: str) -> int:

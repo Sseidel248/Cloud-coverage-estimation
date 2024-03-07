@@ -14,6 +14,12 @@ from tqdm import tqdm
 _WGRIB2_EXE: str = f"{os.path.dirname(os.path.abspath(__file__))}\\wgrib2\\wgrib2.exe"
 
 
+def split_coords(coords, n=50):
+    """Divide the coordinate list into sublists with n coordinates each."""
+    for i in range(0, len(coords), n):
+        yield coords[i:i + n]
+
+
 class Grib2Datas:
     def __init__(self):
         cols = [COL_MODEL, COL_PARAM, COL_DATE, COL_MODEL_FCST_MIN, COL_MODEL_FCST_DATE, COL_MODEL_FILENAME]
@@ -88,13 +94,18 @@ class Grib2Datas:
         filename = founded_df[COL_MODEL_FILENAME].iloc[0]
         fcst_min = founded_df[COL_MODEL_FCST_MIN].iloc[0]
 
-        command: str = f"{_WGRIB2_EXE} {filename} -match {param}"
-        for lat, lon in coords:
-            conv_lat = gFunc.convert_in_0_360(lat)
-            conv_lon = gFunc.convert_in_0_360(lon)
-            command += f" -lon {conv_lon} {conv_lat}"
-        result = subprocess.run(command, capture_output=True, text=True)
-        matches = re.findall(r"val=(\d+\.?\d*(e\+20)?)", result.stdout)
+        results = []
+        # Divide coordinates into groups of 50 and execute commands
+        for coord_grp in split_coords(coords, 50):
+            command = f"{_WGRIB2_EXE} {filename} -match {param}"
+            for lat, lon in coord_grp:
+                conv_lat = gFunc.convert_in_0_360(lat)
+                conv_lon = gFunc.convert_in_0_360(lon)
+                command += f" -lon {conv_lon} {conv_lat}"
+            result = subprocess.run(command, capture_output=True, text=True)
+            results.append(result.stdout)
+
+        matches = re.findall(r"val=(\d+\.?\d*(e\+20)?)", ''.join(results))
 
         for match, (lat, lon) in zip(matches, coords):
             value: float = -1

@@ -1,5 +1,5 @@
 """
-File name:      MainDownloader.py
+File name:      Main_Downloader.py
 Author:         Sebastian Seidel
 Date:           2023-11-15
 Description:    Downloads data from measuring stations and weather models.
@@ -22,19 +22,19 @@ Required:       re - Regular expression
 from WeatherModelData import *
 from WeatherStationData import *
 from Lib.HtmlGrabbler import download_data
-from Lib.ColoredPrint import show_hint
+from colorama import Fore, Style
 
 
 def show_start_message(title: str):
-    show_hint(f"Start Download of {title}...")
+    print(Fore.GREEN + f"Start Download of {title}..." + Style.RESET_ALL)
 
 
 def show_number_of_files(count):
-    show_hint(f"{str(count)} files have been downloaded.\n")
+    print(Fore.GREEN + f"{str(count)} files have been downloaded.\n" + Style.RESET_ALL)
 
 
 # Switch on/off whether the weather station data should be downloaded
-download_measuring_station = False
+download_measuring_station = True
 
 # Download Icon-d2 data
 show_start_message("ICON-D2 CLCT Data")
