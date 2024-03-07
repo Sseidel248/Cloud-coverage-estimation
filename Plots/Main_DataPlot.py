@@ -19,6 +19,7 @@ from Lib import DataAnalysis as da
 from pandas import DataFrame
 from Lib.IOConsts import *
 from matplotlib.colors import LinearSegmentedColormap
+from scipy.spatial.distance import cdist
 
 MOVE_TO: str = "E:\\TUB_Cloud\\03_Master_Studium\\06_Masterarbeit\\Bilder"
 
@@ -41,6 +42,13 @@ def _show_and_export(a_plt: pyplot, show: bool, exportname: str):
         a_plt.show()
     else:
         a_plt.close()
+
+
+def _show_median_on_violin(df: DataFrame,
+                           a_plt: pyplot):
+    for i, col in enumerate(df.columns):
+        median_val = df[col].median()
+        a_plt.text(i + 1, median_val, f' {median_val:.2f}', color='black', ha='left', va='bottom')
 
 
 def _add_geographic(ax: Axes):
@@ -76,6 +84,37 @@ def _make_subplot_cloud_coverage(ax: Axes,
     return sc
 
 
+def _print_as_table(data: list[str]):
+    width = 15
+    for row in data:
+        line = "|".join(["{:<{}}".format(elem, width) for elem in row])
+        print(line)
+
+
+def _show_as_table(title: str,
+                   dwd_locs: DataFrame,
+                   icon_d2_area: DataFrame,
+                   icon_eu_area: DataFrame):
+    print(f"\n~~~{title}~~~\n")
+    dist_mat_d2 = cdist(dwd_locs[[COL_LAT, COL_LON]], icon_d2_area[[COL_LAT, COL_LON]],
+                        metric="euclidean")
+    dist_mat_eu = cdist(dwd_locs[[COL_LAT, COL_LON]], icon_eu_area[[COL_LAT, COL_LON]],
+                        metric="euclidean")
+    closest_idx_d2 = dist_mat_d2.argmin(axis=1)
+    closest_idx_eu = dist_mat_eu.argmin(axis=1)
+    closest_entries_d2 = (icon_d2_area.iloc[closest_idx_d2]
+                          .drop([COL_DATE, COL_LAT, COL_LON, COL_MODEL_FCST_MIN], axis=1)
+                          .rename(columns={CLOUD_COVER: f"{CLOUD_COVER} {MODEL_ICON_D2}"}))
+    closest_entries_eu = (icon_eu_area.iloc[closest_idx_eu]
+                          .drop([COL_DATE, COL_LAT, COL_LON, COL_MODEL_FCST_MIN], axis=1)
+                          .rename(columns={CLOUD_COVER: f"{CLOUD_COVER} {MODEL_ICON_EU}"}))
+    result_entries = pd.concat([dwd_locs,
+                                closest_entries_d2.reset_index(drop=True),
+                                closest_entries_eu.reset_index(drop=True)],
+                               axis=1)
+    print(result_entries)
+
+
 def make_hist(df: DataFrame,
               title: str,
               y_label: str,
@@ -92,24 +131,24 @@ def make_hist(df: DataFrame,
     _show_and_export(plt, show, exportname)
 
 
-def make_compare_violinplt(col: str,
-                           df1: DataFrame,
+def make_compare_violinplt(df1: DataFrame,
                            name1: str,
                            df2: DataFrame,
                            name2: str,
                            show: bool = True,
                            exportname: str = ""):
     _set_fonts()
-    combined_df = pd.DataFrame({name1: df1[col], name2: df2[col]})
+    combined_df = pd.DataFrame({name1: df1[COL_ABS_ERROR], name2: df2[COL_ABS_ERROR]})
     combined_df.dropna(inplace=True)
     combined_df.sort_values(by=name1, inplace=True)
     combined_df.sort_values(by=name2, inplace=True)
     plt.violinplot(combined_df.values, showmedians=True)
-    plt.title(f"Verteilung vom MAE Modelle\n({name1} und {name2}) zu den Wetterstationen")
+    plt.title(f"Verteilung vom MAE Modelle\n({name1} und {name2}) zu den DWD-Stationen", fontweight="bold")
     plt.ylabel("MAE Bedeckungsgrad [%]")
     plt.xlabel("Modelle")
     plt.xticks(ticks=range(1, len(combined_df.columns) + 1), labels=combined_df.columns)
     plt.grid(alpha=0.75)
+    _show_median_on_violin(combined_df, plt)
     _show_and_export(plt, show, exportname)
 
 
@@ -138,7 +177,7 @@ def show_metrics(df: DataFrame, model: str, show: bool = True):
               f"Verteilung_MAE_{model}_DWD_Stationen.svg")
     make_hist(df[COL_ABS_ERROR],
               f"Verteilung des absoluten Fehlers von {model} zu den DWD-Stationen\n(Anzahl Daten: {len(df)})",
-              f"Anzahl Stationen",
+              f"Anzahl berechnete Modelldaten",
               f"Absoluter Fehler vom Bedeckungsgrad [%]",
               20,
               show,
@@ -168,23 +207,29 @@ def compare_fcst_error(df: DataFrame,
     plt.violinplot(combined_df.values, showmedians=True)
     plt.title(f"Verteilung des MAE nach Prognosezeiten vom {model}", fontweight="bold")
     plt.ylabel("MAE Bedeckungsgrad [%]")
-    plt.xlabel("Vorhersagezeit")
+    plt.xlabel("Prognosezeit")
     plt.xticks(ticks=range(1, len(combined_df.columns) + 1), labels=combined_df.columns)
     plt.grid(alpha=0.75)
-
-    for i, col in enumerate(combined_df.columns):
-        median_val = combined_df[col].median()
-        plt.text(i + 1, median_val, f'{median_val:.2f}', color='black', ha='left', va='bottom')
+    _show_median_on_violin(combined_df, plt)
     _show_and_export(plt, show, exportname)
 
 
-def make_scatterplot_dwd_location(df: DataFrame,
-                                  show: bool = True,
-                                  exportname: str = ""):
-    df_data = df.groupby(COL_STATION_ID).agg({
-        COL_LAT: "first",  # Breitengrad der Station
-        COL_LON: "first"  # Längengrad der Station
-    }).reset_index()
+def make_scatterplot_dwd_locations(df: DataFrame,
+                                   show: bool = True,
+                                   exportname: str = "",
+                                   model: str = "",
+                                   use_abs_error: bool = False):
+    if use_abs_error:
+        df_data = df.groupby(COL_STATION_ID).agg({
+            COL_LAT: "first",
+            COL_LON: "first",
+            COL_ABS_ERROR: "mean"
+        }).reset_index()
+    else:
+        df_data = df.groupby(COL_STATION_ID).agg({
+            COL_LAT: "first",
+            COL_LON: "first"
+        }).reset_index()
 
     fig = plt.figure()
     _set_fonts()
@@ -192,16 +237,28 @@ def make_scatterplot_dwd_location(df: DataFrame,
     ax.set_extent([df_data[COL_LON].min() - 1, df_data[COL_LON].max() + 1,
                    df_data[COL_LAT].min() - 1, df_data[COL_LAT].max() + 1],
                   crs=ccrs.PlateCarree())
-    # Füge natürliche Erdeigenschaften hinzu
     _add_geographic(ax)
-    sc = ax.scatter(df_data[COL_LON], df_data[COL_LAT],
-                    s=35,
-                    alpha=0.80,
-                    edgecolor="black",
-                    transform=ccrs.PlateCarree())
+    if use_abs_error:
+        sc = ax.scatter(df_data[COL_LON], df_data[COL_LAT],
+                        c=df_data[COL_ABS_ERROR],
+                        cmap="rainbow",
+                        s=35,
+                        alpha=0.80,
+                        edgecolor="black",
+                        transform=ccrs.PlateCarree())
+        plt.colorbar(sc, ax=ax, label="Absoluter Fehler [%]")
+        plt.title(f"Geografische Verteilung des absoluten Fehler zwischen {model}\nund den DWD-Stationen",
+                  fontweight="bold")
+    else:
+        sc = ax.scatter(df_data[COL_LON], df_data[COL_LAT],
+                        s=35,
+                        alpha=0.80,
+                        edgecolor="black",
+                        transform=ccrs.PlateCarree())
+        plt.title("Geografische Verteilung der DWD-Stationen zum\nMessen des Bedeckungsgrades", fontweight="bold")
+
     sc.set_label("DWD-Station")
     ax.legend()
-    plt.title("Geografische Verteilung der DWD-Stationen zum\nMessen des Bewölkungsgrades", fontweight="bold")
     plt.tight_layout()
     _show_and_export(plt, show, exportname)
 
@@ -238,19 +295,21 @@ def make_scatterplots_cloud_coverage(model_data_icon_d2_area_1: str,
     _make_subplot_cloud_coverage(axs[1, 0], data_icon_d2_area_2, dwd_locs_area_2, cloud_cmap)
     _make_subplot_cloud_coverage(axs[0, 1], data_icon_eu_area_1, dwd_locs_area_1, cloud_cmap)
     sc = _make_subplot_cloud_coverage(axs[1, 1], data_icon_eu_area_2, dwd_locs_area_2, cloud_cmap)
-    # Zugriff auf das zweite Artist-Objekt welches die DWD Markierungen zeichnet
+    # Access to the second Artist object which draws the DWD markings
     fig.legend([axs[1, 1].collections[1]], ["DWD-Station"], loc="center", bbox_to_anchor=(0.5, 0.45))
     cbar = fig.colorbar(sc, ax=[axs[0, 1], axs[1, 1]])
-    cbar.set_label("Bewölkungsgrad [%]")
+    cbar.set_label("Bedeckungsgrad [%]")
     cbar.set_ticks([0, 12.5, 25, 37.5, 50, 62.5, 75, 87.5, 100])
-    plt.suptitle(f"Bewölkungsgrade der Modelle\n Datum: {date}", fontweight="bold")
-    # Bild als png das svg word langsam macht
+    plt.suptitle(f"Bedeckungsgrad der Modelle\n Datum: {date}", fontweight="bold")
+    # Picture export as png because svg slow down word
     _show_and_export(plt, show, exportname)
+    _show_as_table("Area 1", dwd_locs_area_1, data_icon_d2_area_1, data_icon_eu_area_1)
+    _show_as_table("Area 2", dwd_locs_area_2, data_icon_d2_area_2, data_icon_eu_area_2)
 
 
-def make_germany_dwd_cloud_stations(df_data: DataFrame,
-                                    show: bool = True,
-                                    exportname: str = ""):
+def show_used_areas_dwd_stations(df_data: DataFrame,
+                                 show: bool = True,
+                                 exportname: str = ""):
     stations = df_data[[COL_STATION_ID, COL_LON, COL_LAT]].drop_duplicates()
     fig = plt.figure()
     _set_fonts()
@@ -289,14 +348,13 @@ def load(filename: str) -> DataFrame:
 
 # Initialisation
 show_plot = False
-override_existing_plot_export = False
 
 # Loading CSV-Files
 df_d2 = load(CSV_NAME_ICON_D2)
 df_eu = load(CSV_NAME_ICON_EU)
 
 # Show all used DWD-Locations
-make_scatterplot_dwd_location(df_d2, show_plot, "Verwendete_DWD-Stationen.svg")
+make_scatterplot_dwd_locations(df_d2, show_plot, "Verwendete_DWD-Stationen.svg")
 print(f"Anzahl verwendeter DWD-Stationen in ICON-D2: {len(df_d2[COL_STATION_HEIGHT].unique())}")
 print(f"Anzahl verwendeter DWD-Stationen in ICON-EU: {len(df_eu[COL_STATION_HEIGHT].unique())}")
 
@@ -305,10 +363,10 @@ show_metrics(df_d2, MODEL_ICON_D2, show_plot)
 show_metrics(df_eu, MODEL_ICON_EU, show_plot)
 
 # Show Errors between Forecasts
-compare_fcst_error(df_d2, MODEL_ICON_D2, show_plot, "Fehler_zwischen_den_Vorhersagezeitpunkten_vom_ICON_D2.svg")
-compare_fcst_error(df_eu, MODEL_ICON_EU, show_plot, "Fehler_zwischen_den_Vorhersagezeitpunkten_vom_ICON_EU.svg")
+compare_fcst_error(df_d2, MODEL_ICON_D2, show_plot, "Fehler_zwischen_den_Prognosezeitpunkten_vom_ICON_D2.svg")
+compare_fcst_error(df_eu, MODEL_ICON_EU, show_plot, "Fehler_zwischen_den_Prognosezeitpunkten_vom_ICON_EU.svg")
 
-# # Show Weather example plot
+# Show Weather example plot
 make_scatterplots_cloud_coverage(f".\\Area_I_ICON-D2.csv",
                                  f".\\Area_I_ICON-EU.csv",
                                  f".\\DWD-Stations_in_Area_I_ICON-D2.csv",
@@ -318,11 +376,16 @@ make_scatterplots_cloud_coverage(f".\\Area_I_ICON-D2.csv",
                                  show_plot,
                                  f".\\Cloud_Coverage_Compare_ICON-D2_ICON-EU.png")
 
-make_germany_dwd_cloud_stations(df_d2, show_plot, f".\\DWD_Station_Cloud_Coverage.svg")
+show_used_areas_dwd_stations(df_d2, show_plot, f".\\DWD_Station_Cloud_Coverage.svg")
 
-#
-# make_compare_violinplt(COL_ABS_ERROR, df_d2, "ICON-D2", df_eu, "ICON-EU", show_plot,
-#                        f".\\MAE_Vergleich_ViolinPlt_ICON_D2_ICON_EU.svg")
+make_compare_violinplt(df_d2, MODEL_ICON_D2, df_eu, MODEL_ICON_EU, show_plot,
+                       f".\\MAE_Vergleich_ViolinPlt_ICON_D2_ICON_EU.svg")
+
+make_scatterplot_dwd_locations(df_d2, show_plot, f".\\MAE_vergleich_ICON-D2_DWD_gesamt_D.svg",
+                               MODEL_ICON_D2, True)
+make_scatterplot_dwd_locations(df_eu, show_plot, f".\\MAE_vergleich_ICON-EU_DWD_gesamt_D.svg",
+                               MODEL_ICON_EU, True)
+
 # print(f"Median vom absoluten Fehler zwischen ICON-D2 und DWD-Stationen: {df_d2[COL_ABS_ERROR].median():.2f}%")
 # print(f"Median vom absoluten Fehler zwischen ICON-EU und DWD-Stationen: {df_eu[COL_ABS_ERROR].median():.2f}%")
 # print(type(da.get_dwd_height_details(df_d2)))
@@ -338,7 +401,7 @@ make_germany_dwd_cloud_stations(df_d2, show_plot, f".\\DWD_Station_Cloud_Coverag
 #     "Lon": "first",  # Längengrad der Station
 #     "Absolute_Error": "mean"  # Mittelwert des absoluten Fehlers
 # }).reset_index()
-
+#
 # fig = plt.figure()
 # _set_fonts()
 # ax = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
