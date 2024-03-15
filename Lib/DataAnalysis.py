@@ -19,7 +19,7 @@ Each function is documented with a detailed description, parameters, and return 
 import numpy as np
 import pandas as pd
 from pandas import DataFrame, Series
-from scipy import stats
+from scipy.stats import normaltest, pearsonr, spearmanr  # serves as interface
 from typing import Tuple
 from Lib.IOConsts import *
 
@@ -140,7 +140,8 @@ def get_dwd_col_details(df: DataFrame, col_name: str) -> Series:
              for a dwd-station data column.
     """
     _check_column_name_exist(df, col_name)
-    return df[col_name].describe()
+    tmp = df[col_name].dropna()
+    return tmp.describe()
 
 
 def calc_custom_z_score(df: DataFrame, col_name: str, limit: float) -> DataFrame:
@@ -162,8 +163,20 @@ def calc_custom_z_score(df: DataFrame, col_name: str, limit: float) -> DataFrame
     column.
     """
     _check_column_name_exist(df, col_name)
-    custom_std = np.sqrt(np.sum((df[col_name] - limit)**2) / df[col_name].count()-1)
+    custom_std = np.sqrt(np.sum((df[col_name] - limit) ** 2) / df[col_name].count() - 1)
     df[COL_Z_SCORE] = (df[col_name] - limit) / custom_std
     return df
 
 
+def calc_corr_coef(pvalue: float, df: DataFrame, col_name1: str, col_name2: str) -> Tuple[float, float]:
+
+    _check_column_name_exist(df, col_name1)
+    _check_column_name_exist(df, col_name2)
+    data = df[[col_name1, col_name2]].dropna()
+    # Data not normally distributed
+    if pvalue > 0.05:
+        coef, pvalue = pearsonr(data[col_name1], data[col_name2])
+    # Data normally distributed
+    else:
+        coef, pvalue = spearmanr(data[col_name1], data[col_name2])
+    return coef, pvalue

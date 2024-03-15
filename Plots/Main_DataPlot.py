@@ -6,15 +6,15 @@ Date:           2024.**.**
 import os
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 import numpy as np
 import pandas as pd
+import statsmodels.api as sm
+
 from matplotlib import pyplot
 from matplotlib.axes import Axes
 from matplotlib.collections import PathCollection
-
 from Lib import DataAnalysis as da
 from pandas import DataFrame
 from Lib.IOConsts import *
@@ -116,14 +116,40 @@ def _show_as_table(title: str,
 
 
 def _drop_param(df: DataFrame, params: list[str]) -> DataFrame:
-    # df_clean = df.copy()
+    df_clean = df.copy()
     for param in params:
         if param in df.columns:
             # drop hole column
-            df.drop(param, axis=1, inplace=True)
+            df_clean.drop(param, axis=1, inplace=True)
     # drop row who includes nan
-    df.dropna(inplace=True)
-    return df
+    df_clean.dropna(inplace=True)
+    return df_clean
+
+
+def _get_param_x_label(param: str) -> str:
+    if param == "V_N":
+        return "Bewölungsgrad [%]"
+    elif param == "F":
+        return "Windgeschwindigkeit [m/s]"
+    elif param == "RF_TU":
+        return "Relative Feuchtigkeit [%]"
+    elif param == "TT_TU":
+        return "Lufttemperatur [°C]"
+    elif param == "P":
+        return "Luftdruck auf Meereshöhe NN [hPa]"
+    else:
+        return "Undefinierter Parameter [-]"
+
+
+def _print_corr_results(pvalue: float, coef_r: float, pvalue_r):
+    # Data not normally distributed
+    if pvalue > 0.05:
+        print(f"Person-Korrelationsberechnung: Koeffizient={coef_r}")
+        print(f"Person-Korrelationsberechnung: P-Wert={pvalue_r}")
+    # Data normally distributed
+    else:
+        print(f"Spearman-Rangkorrelationsberechnung: Koeffizient={coef_r}")
+        print(f"Spearman-Rangkorrelationsberechnung: P-Wert={pvalue_r}")
 
 
 def make_hist(df: DataFrame,
@@ -133,9 +159,10 @@ def make_hist(df: DataFrame,
               num_bins: int,
               show: bool = True,
               exportname: str = "",
+              min_value: float = 0,
               color_value_above: float = 0):
     _set_fonts()
-    arr = df.hist(bins=num_bins, color="skyblue", edgecolor="black", range=[0, df.max()])
+    arr = df.hist(bins=num_bins, color="skyblue", edgecolor="black", range=[min_value, df.max()])
     plt.title(title, fontweight="bold")
     plt.ylabel(y_label)
     plt.xlabel(x_label)
@@ -175,6 +202,20 @@ def make_compare_violinplt(df1: DataFrame,
     _show_and_export(plt, show, exportname)
 
 
+def make_qq_plot(df: DataFrame,
+                 title: str,
+                 show: bool = True,
+                 exportname: str = ""):
+    _set_fonts()
+    sm.qqplot(df, line='45')
+    plt.title(title, fontweight="bold")
+    plt.xlabel("Theoretische Quantile der Standardnormalverteilung")
+    plt.ylabel("Empirische Quantile der Stichprobe")
+    plt.grid(alpha=0.75)
+    plt.legend(labels=["Datenpunkt", "Ideallinie"], loc="lower right")
+    _show_and_export(plt, show, exportname)
+
+
 def show_error_metrics(df: DataFrame, model: str, show: bool = True):
     stations_info = da.get_mean_abs_error_each_station(df)
     me_mae_rmse = da.get_me_mae_rmse(df, "TCDC", "V_N")
@@ -195,7 +236,8 @@ def show_error_metrics(df: DataFrame, model: str, show: bool = True):
               f"MAE vom Bedeckungsgrad [%]",
               30,
               show,
-              f"Verteilung_MAE_{model}_DWD_Stationen.svg",
+              f"HistPlt_Verteilung_MAE_{model}_DWD_Stationen.svg",
+              0,
               12.5)
     make_hist(df[COL_ABS_ERROR],
               f"Verteilung des absoluten Fehlers von {model} zu den DWD-Stationen\n(Anzahl Daten: {len(df)})",
@@ -203,15 +245,7 @@ def show_error_metrics(df: DataFrame, model: str, show: bool = True):
               f"Absoluter Fehler vom Bedeckungsgrad [%]",
               40,
               show,
-              f"MAE_{model}_DWD_Stationen.svg")
-    # unique_station_heights = pd.DataFrame(df[COL_STATION_HEIGHT].unique(), columns=[COL_STATION_HEIGHT])
-    # make_hist(unique_station_heights,
-    #           f"Höhenverteilung der DWD-Stationen für\n{model}-Datensatz",
-    #           "Anzahl Stationen [-]",
-    #           "Stationshöhe [m]",
-    #           30,
-    #           show,
-    #           f"Höhenverteilung_DWD_Stationen_{model}_Datensatz.svg")
+              f"HistPlt_MAE_{model}_DWD_Stationen.svg")
 
 
 def compare_fcst_error(df: DataFrame,
@@ -240,8 +274,11 @@ def make_scatterplot_dwd_locations(df: DataFrame,
                                    show: bool = True,
                                    exportname: str = "",
                                    model: str = "",
-                                   use_abs_error: bool = False):
-    if use_abs_error:
+                                   show_mean_abs_error: bool = False,
+                                   custom_col_bar_label: str = "",
+                                   custom_title: str = ""):
+    # calculation of MAE
+    if show_mean_abs_error:
         df_data = df.groupby(COL_STATION_ID).agg({
             COL_LAT: "first",
             COL_LON: "first",
@@ -260,16 +297,18 @@ def make_scatterplot_dwd_locations(df: DataFrame,
                    df_data[COL_LAT].min() - 1, df_data[COL_LAT].max() + 1],
                   crs=ccrs.PlateCarree())
     _add_geographic(ax)
-    if use_abs_error:
+    if show_mean_abs_error:
         sc = ax.scatter(df_data[COL_LON], df_data[COL_LAT],
                         c=df_data[COL_ABS_ERROR],
                         cmap="rainbow",
-                        vmin=0,
                         s=35,
                         alpha=0.80,
                         edgecolor="black",
                         transform=ccrs.PlateCarree())
-        plt.colorbar(sc, ax=ax, label="Absoluter Fehler [%]")
+        if custom_col_bar_label == "":
+            plt.colorbar(sc, ax=ax, label="Absoluter Fehler [%]")
+        else:
+            plt.colorbar(sc, ax=ax, label=custom_col_bar_label)
         plt.title(f"Geografische Verteilung des absoluten Fehler zwischen {model}\nund den DWD-Stationen",
                   fontweight="bold")
     else:
@@ -279,7 +318,8 @@ def make_scatterplot_dwd_locations(df: DataFrame,
                         edgecolor="black",
                         transform=ccrs.PlateCarree())
         plt.title("Geografische Verteilung der DWD-Stationen zum\nMessen des Bedeckungsgrades", fontweight="bold")
-
+    if custom_title != "":
+        plt.title(custom_title, fontweight="bold")
     sc.set_label("DWD-Station")
     ax.legend()
     plt.tight_layout()
@@ -377,6 +417,7 @@ def load(filename: str) -> DataFrame:
 
 # Initialisation
 show_plot = False
+dwd_params = ["V_N", "V_N_I", "D", "F", "RF_TU", "TT_TU", "P", "P0"]
 
 # Loading CSV-Files
 # df_d2_cloud_only = load(CSV_NAME_ICON_D2)
@@ -387,8 +428,7 @@ df_eu_full = load(".\\all_param_data_ICON_EU.csv")
 df_eu_cloud_only = _drop_param(df_eu_full, ["D", "F", "RF_TU", "TT_TU", "P", "P0"])
 
 # Show all used DWD-Locations
-
-make_scatterplot_dwd_locations(df_d2_cloud_only, show_plot, "Verwendete_DWD-Stationen.svg")
+make_scatterplot_dwd_locations(df_d2_cloud_only, show_plot, "ScatPlt_Verwendete_DWD-Stationen.svg")
 print(f"Anzahl verwendeter DWD-Stationen in ICON-D2: {len(df_d2_cloud_only[COL_STATION_HEIGHT].unique())}")
 print(f"Anzahl verwendeter DWD-Stationen in ICON-EU: {len(df_eu_cloud_only[COL_STATION_HEIGHT].unique())}")
 
@@ -399,11 +439,13 @@ show_error_metrics(df_d2_cloud_only, MODEL_ICON_D2, show_plot)
 show_error_metrics(df_eu_cloud_only, MODEL_ICON_EU, show_plot)
 
 # Show Errors between Forecasts
-compare_fcst_error(df_d2_cloud_only, MODEL_ICON_D2, show_plot, "Fehler_zwischen_den_Prognosezeitpunkten_vom_ICON_D2.svg")
-compare_fcst_error(df_eu_cloud_only, MODEL_ICON_EU, show_plot, "Fehler_zwischen_den_Prognosezeitpunkten_vom_ICON_EU.svg")
+compare_fcst_error(df_d2_cloud_only, MODEL_ICON_D2, show_plot,
+                   "VioPlt_Fehler_zwischen_den_Prognosezeitpunkten_vom_ICON_D2.svg")
+compare_fcst_error(df_eu_cloud_only, MODEL_ICON_EU, show_plot,
+                   "VioPlt_Fehler_zwischen_den_Prognosezeitpunkten_vom_ICON_EU.svg")
 
 # Show used areas in germany for the example plot
-show_used_areas_dwd_stations(df_d2_cloud_only, show_plot, f".\\DWD_Station_Cloud_Coverage.svg")
+show_used_areas_dwd_stations(df_d2_cloud_only, show_plot, f".\\ScatPlt_DWD_Station_Cloud_Coverage.svg")
 
 # Show Weather example plot
 make_scatterplots_cloud_coverage(f".\\Area_I_ICON-D2.csv",
@@ -413,90 +455,65 @@ make_scatterplots_cloud_coverage(f".\\Area_I_ICON-D2.csv",
                                  f".\\Area_II_ICON-EU.csv",
                                  f".\\DWD-Stations_in_Area_II_ICON-D2.csv",
                                  show_plot,
-                                 f".\\Cloud_Coverage_Compare_ICON-D2_ICON-EU.png")
+                                 f".\\ScatPlt_Cloud_Coverage_Compare_ICON-D2_ICON-EU.png")
 
 # Show compare of MAE from ICON-D2 and ICON-EU
 make_compare_violinplt(df_d2_cloud_only, MODEL_ICON_D2, df_eu_cloud_only, MODEL_ICON_EU, show_plot,
-                       f".\\MAE_Vergleich_ViolinPlt_ICON_D2_ICON_EU.svg")
+                       f".\\VioPlt_MAE_Vergleich_ICON_D2_ICON_EU.svg")
 
-# Show MAE for each DWD-Station and ICON-D2 / ICON-EU
-make_scatterplot_dwd_locations(df_d2_cloud_only, show_plot, f".\\MAE_vergleich_ICON-D2_DWD_gesamt_D.svg",
-                               MODEL_ICON_D2, True)
-make_scatterplot_dwd_locations(df_eu_cloud_only, show_plot, f".\\MAE_vergleich_ICON-EU_DWD_gesamt_D.svg",
-                               MODEL_ICON_EU, True)
+# Show difference between MAE for each DWD-Station of ICON-D2 and ICON-EU
+df_diff = df_d2_cloud_only[[COL_STATION_ID, COL_LAT, COL_LON]].copy()
+df_diff[COL_ABS_ERROR] = abs(df_d2_cloud_only[COL_ABS_ERROR] - df_eu_cloud_only[COL_ABS_ERROR])
+make_scatterplot_dwd_locations(df_diff, show_plot, f".\\ScatPlt_Diff_MAE_vergleich_ICON-D2_EU.svg",
+                               MODEL_ICON_D2, True,
+                               "Differenz Fehlerbewölkungsgrad [%]",
+                               "Verteilung der Fehlerdifferenzen von ICON-D2 und ICON-EU\n"
+                               "bezogen auf die DWD-Stationen")
 
+# only D2 #
 # D2 - Calculate outliers in the data
 dwd_outlier_d2 = calc_dwd_outliers(df_d2_cloud_only)
 
+# remove unused DWD-Param
+# remove pressure at Station_height
+dwd_params.remove("P0")
+# remove wind direction
+dwd_params.remove("D")
+# remove cloud coverage dwd Station
+dwd_params.remove("V_N")
+dwd_params.remove("V_N_I")
+# add Station-Height
+dwd_params.append(COL_STATION_HEIGHT)
+
+# collect all DWD-Stations who can measure all params
+dwd_station_all_param = df_d2_full.dropna().copy()
+print(f"Anzahl der DWD-Stationen die alle Parameter messen: {len(dwd_station_all_param[COL_STATION_ID].unique())}")
+da.calc_abs_error(dwd_station_all_param, "TCDC", "V_N")
+
 # explorative dataanalysis for each dwd param
+for dwd_param in dwd_params:
+    print(f"\n~~~{dwd_param}~~~\n")
+    print(da.get_dwd_col_details(dwd_station_all_param, dwd_param))
+    param_details = dwd_station_all_param[dwd_param].dropna()
+    make_hist(param_details,
+              f"Verteilung vom Parameter: {dwd_param}",
+              "Anzahl Datenpunkte",
+              _get_param_x_label(dwd_param),
+              30,
+              show_plot,
+              f".\\HistPlt_Verteilung_DWD_Param_{dwd_param}.svg",
+              param_details.min())
+    make_qq_plot(param_details,
+                 f"QQ-Plot vom Parameter: {dwd_param}",
+                 show_plot,
+                 f".\\QQPlot_DWD_Param_{dwd_param}.png")
+    _, pvalue = da.normaltest(param_details)
+    print(f"Normaltest von {dwd_param}: p-Value = {pvalue}")
+    coef, pvaluer = da.calc_corr_coef(pvalue, dwd_station_all_param, COL_ABS_ERROR, dwd_param)
+    _print_corr_results(pvalue, coef, pvaluer)
 
-
-# print(f"Median vom absoluten Fehler zwischen ICON-D2 und DWD-Stationen: {df_d2[COL_ABS_ERROR].median():.2f}%")
-# print(f"Median vom absoluten Fehler zwischen ICON-EU und DWD-Stationen: {df_eu[COL_ABS_ERROR].median():.2f}%")
-# print(type(da.get_dwd_height_details(df_d2)))
-# print(da.get_dwd_height_details(df_eu))
-
-# compare_fcst_error(df_d2, "ICON-D2")
-# compare_fcst_error(df_eu, "ICON-EU")
-
-# TODO: Als Funktion auslagern, auch mit Dateiexport
-# Erstelle eine Projektion für die Karte
-# df = df_d2.groupby("Station_ID").agg({
-#     "Lat": "first",  # Breitengrad der Station
-#     "Lon": "first",  # Längengrad der Station
-#     "Absolute_Error": "mean"  # Mittelwert des absoluten Fehlers
-# }).reset_index()
-#
-# fig = plt.figure()
-# _set_fonts()
-# ax = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
-# ax.set_extent([df["Lon"].min() - 1, df["Lon"].max() + 1,
-#                df["Lat"].min() - 1, df["Lat"].max() + 1],
-#               crs=ccrs.PlateCarree())
-#
-# # Füge natürliche Erdeigenschaften hinzu
-# ax.add_feature(cfeature.COASTLINE)
-# ax.add_feature(cfeature.BORDERS, linestyle=":")
-# ax.add_feature(cfeature.OCEAN)
-# ax.add_feature(cfeature.LAKES, alpha=0.5)
-# ax.add_feature(cfeature.RIVERS)
-# scatter = ax.scatter(df["Lon"], df["Lat"],
-#                      c=df["Absolute_Error"],
-#                      cmap="rainbow",
-#                      s=35,
-#                      alpha=0.80,
-#                      edgecolor="black",
-#                      transform=ccrs.PlateCarree())
-# plt.colorbar(scatter, label="Mittelwert des absoluten Fehlers")
-#
-#
-# gl = ax.gridlines(draw_labels=True, linewidth=1, color="gray", alpha=0.5, linestyle='--')
-# gl.top_labels = False
-# gl.right_labels = False
-# plt.title("Geografische Verteilung des mittleren absoluten Fehlers", fontweight="bold")
-# plt.tight_layout()
-# plt.show()
-
-# TODO: Überarbeitung der Reihenfolge der Ausgaben!!
-
-
-# TODO: Scatter Plot für die Verteilung der DWD-Stationen in Deutschland
-# TODO: Bedeckungsgrad in einem Gebiet zeigen (ICON-D2 und ICON-EU) plus DWD-Werte der Stationen
-#  Die Werte der DWD-Station plus Icon-Modell-Werte ausgeben
-# TODO: Ungenauigkeiten der Modelle selbst (0min, 60min, 120min) im Violinplot, Median ausgeben lassen
-
-
-# TODO: Unterschied in der Genauigkeit DWD-Stationsmessung Person und Instrument, mit Angabe wie viele Datenpunkte
-# TODO: Berechnen vom Z-Score -> Nur die Werte oberhalb von 12,5% sind relevant
-# TODO: Prüfen, wegen Normalverteilung oder nicht und dann Pearson-Korrelationskoeffizient oder
-#  Spearman-Rangkorrelationskoeffizient berechnen um den Einfluss zu messen
-
-
-# copy all created svg to my target MA-Picture Folder
-# if override_existing_plot_export:
-#     svgs = get_files(".\\", ".svg")
-#     for svg in svgs:
-#         target = os.path.join(MOVE_TO, svg)
-#         if os.path.exists(target):
-#             os.remove(target)
-#         shutil.move(svg, MOVE_TO)
+# TODO: Betrachten der Messung durch die Person und durch Instrumente
+print(f"\n~~~Vergleich Instrumentmessung und Personenmessung - Bewölkungsgrad~~~\n")
+# TODO: trennen von DWD Messung P und I
+# TODO: Anzahl anzeigen
+# TODO: Corr Coeffi berechnen und auswerten, wo der größere Fehler liegt
