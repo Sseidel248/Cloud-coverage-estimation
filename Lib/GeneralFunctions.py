@@ -23,6 +23,10 @@ def round_to_nearest_hour(date_time: datetime) -> datetime:
     return rounded_date
 
 
+def datetime_to_strf(date_time: datetime) -> str:
+    return date_time.strftime('%Y%m%d%H')
+
+
 def hours_difference(datetime1: datetime, datetime2: datetime) -> float:
     time_difference: timedelta = datetime2 - datetime1
     return abs(time_difference.total_seconds() / 3600)

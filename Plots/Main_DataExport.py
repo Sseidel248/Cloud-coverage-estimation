@@ -121,10 +121,11 @@ def export_to_csv(df: DataFrame, filename: str):
     df.to_csv(unique_filename, sep=";", decimal=",", na_rep="nan", index=False)
 
 
-def data_postprocessing(df: DataFrame,
-                        drop_nan: bool,
-                        drop_invalid: bool,
-                        invalid_nums: list[int]) -> DataFrame:
+def data_postprocessing(df: DataFrame) -> DataFrame:
+    # -999 - missing value dwd
+    # 9.999e+20 - invalid value icon model
+    conv_to_nan = [-999, 9.999e+20]
+
     col_type_dict = {
         "V_N": float,
         "V_N_I": str,
@@ -146,21 +147,16 @@ def data_postprocessing(df: DataFrame,
             if pd.api.types.is_string_dtype(df[col]):
                 df[col] = df[col].str.strip()
 
-    # Drop invalid values
-    if drop_invalid:
-        for col in df.columns:
-            if pd.api.types.is_numeric_dtype(df[col]):
-                df = df[~df[col].isin(invalid_nums)]
+    # convert invalid Values to nan
+    df.replace(conv_to_nan, np.nan, inplace=True)
 
+    # convert dwd cloud coverage to [%]
     if "V_N" in df.columns:
         # convert -1 in V_N to 8/8 Cloud Coverage because it is fog
         df["V_N"].replace(-1, 8, inplace=True)
         # recalc in percentage [-] -> [%]
         df["V_N"] = df["V_N"] / 8 * 100
 
-    # Drop NaN
-    if drop_nan:
-        return df.dropna()
     return df
 
 
@@ -219,7 +215,7 @@ def export_cloud_area_csv(dwd_datas: DWDStations,
         if "V_N" in tmp.columns:
             dwd_area.loc[idx, "V_N"] = float(tmp["V_N"].iloc[0])
     dwd_area.insert(0, COL_DATE, calc_date)
-    dwd_area = data_postprocessing(dwd_area, True, True, [-999])
+    dwd_area = data_postprocessing(dwd_area)
     export_to_csv(dwd_area, f".\\{exportname_dwd}")
 
     # create Modeldata for area
@@ -254,22 +250,22 @@ grib2_datas.load_folder(grib2_path)
 dwds = DWDStations()
 dwds.load_folder(dwd_path)
 
-# # combine dwd and grib2 datas
+# combine dwd and grib2 datas
 dwd_params = ["V_N", "V_N_I"]
 export_df = combine_datas(dwds, grib2_datas, model, param, False, dwd_params)
-#
-# # contains all params
+
+# contains all params
 export_all_param_df = combine_datas(dwds, grib2_datas, model, param, True)
-#
-# # Postprocessing readed datas
-export_df = data_postprocessing(export_df, False, False, [-999])
-export_all_param_df = data_postprocessing(export_all_param_df, False, False, [-999])
-#
-# # save export
+
+# Postprocessing readed datas
+export_df = data_postprocessing(export_df)
+export_all_param_df = data_postprocessing(export_all_param_df)
+
+# save export
 export_to_csv(export_df, exportname)
 export_to_csv(export_all_param_df, f"all_param_{exportname}")
-#
-# # create example area for plot some clouds
+
+# create example area for plot some clouds
 export_cloud_area_csv(dwds, grib2_datas, 52.5, 54.5, 12.0, 14.0, model_delta,
                       f"DWD-Stations_in_Area_I_{model}.csv", f"Area_I_{model}.csv")
 export_cloud_area_csv(dwds, grib2_datas, 47.5, 49.5, 7.5, 9.5, model_delta,

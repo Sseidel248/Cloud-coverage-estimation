@@ -77,6 +77,7 @@ class DWDStations:
         # Init start structure
         result_df: DataFrame = pd.DataFrame()
         result_df[COL_DATE] = date_times["Datetime"].apply(gFunc.round_to_nearest_hour)
+        result_df[COL_DATE] = date_times["Datetime"].apply(gFunc.datetime_to_strf)  # !!
         result_df[COL_STATION_ID] = self.df.loc[(self.df[COL_LAT] == lat)
                                                 & (self.df[COL_LON] == lon), COL_STATION_ID].iloc[0]
         result_df[COL_STATION_HEIGHT] = self.df.loc[(self.df[COL_LAT] == lat)
@@ -98,14 +99,18 @@ class DWDStations:
             height: float = float(row[COL_STATION_HEIGHT].iloc[0])
             if os.path.exists(filename):
                 df_file = read_file_to_df(filename)
+
                 matching_rows = df_file[df_file[COL_DATE].isin(result_df[COL_DATE])].copy()
                 if not matching_rows.empty:
+                    matching_rows[param] = matching_rows[param].str.strip()
                     result_df = result_df.merge(matching_rows[[COL_DATE, param]], on=COL_DATE, how='left')
                     result_df[COL_STATION_HEIGHT].fillna(height, inplace=True)
         # if eor columns exist, then remove it
         if "eor" in result_df.columns:
             result_df = result_df.drop(columns=["eor"])
-        return result_df.dropna()
+        result_df.dropna(inplace=True)
+        result_df[COL_DATE] = pd.to_datetime(result_df[COL_DATE], format="%Y%m%d%H")
+        return result_df
 
     def get_unloaded_stations(self) -> DataFrame:
         return self.df.loc[self.df[COL_DWD_LOADED] == False]
@@ -139,6 +144,13 @@ class DWDStations:
         if match:
             station_id: int = int(match.group(1))
             if self.df[COL_STATION_ID].isin([station_id]).any():
+                # compare start_date and end_date and apply it
+                start_date = datetime.strptime(match.group(2), "%Y%m%d")
+                end_date = datetime.strptime(match.group(3), "%Y%m%d")
+                if start_date < self.df.loc[self.df[COL_STATION_ID] == station_id, COL_DATE_START].iloc[0]:
+                    self.df.loc[self.df[COL_STATION_ID] == station_id, COL_DATE_START] = start_date
+                if end_date > self.df.loc[self.df[COL_STATION_ID] == station_id, COL_DATE_END].iloc[0]:
+                    self.df.loc[self.df[COL_STATION_ID] == station_id, COL_DATE_END] = end_date
                 return False
             new_row = {
                 COL_STATION_ID: station_id,
@@ -181,6 +193,8 @@ class DWDStations:
             # If yes, copy the line for each additional parameter
             for param in params:
                 new_row = self.df.loc[row_index[0]].copy()
+                if self.df.loc[self.df[COL_STATION_ID] == a_id, COL_PARAM].isin([param]).any():
+                    continue
                 new_row[COL_PARAM] = param
                 new_row[COL_DWD_FILENAME] = filename
                 self.df.loc[len(self.df)] = new_row
@@ -221,6 +235,7 @@ class DWDStations:
                         self._add_entry(line)
         if len(self.df) == 0:
             raise CorruptedInitFileError("Init file contains no information on DWD stations.")
+        self.df.sort_values(by=COL_STATION_ID, inplace=True)
 
 
 def _read_min_date(filename: str) -> datetime:
@@ -264,7 +279,7 @@ def read_file_to_df(filename: str) -> DataFrame:
     df = df.drop(0)
     # parse datetime column
     df.rename(columns={"MESS_DATUM": COL_DATE, "STATIONS_ID": COL_STATION_ID}, inplace=True)
-    df[COL_DATE] = pd.to_datetime(df[COL_DATE], format="%Y%m%d%H")
+    # df[COL_DATE] = pd.to_datetime(df[COL_DATE], format="%Y%m%d%H")
     return df
 
 

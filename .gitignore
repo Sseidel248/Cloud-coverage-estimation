@@ -166,3 +166,4 @@ extracted_station_files
 /Lib/*.grib2
 *.svg
 *.png
+test

@@ -115,19 +115,40 @@ def _show_as_table(title: str,
     print(result_entries)
 
 
+def _drop_param(df: DataFrame, params: list[str]) -> DataFrame:
+    # df_clean = df.copy()
+    for param in params:
+        if param in df.columns:
+            # drop hole column
+            df.drop(param, axis=1, inplace=True)
+    # drop row who includes nan
+    df.dropna(inplace=True)
+    return df
+
+
 def make_hist(df: DataFrame,
               title: str,
               y_label: str,
               x_label: str,
               num_bins: int,
               show: bool = True,
-              exportname: str = ""):
+              exportname: str = "",
+              color_value_above: float = 0):
     _set_fonts()
-    df.hist(bins=num_bins, color="skyblue", edgecolor="black")
+    arr = df.hist(bins=num_bins, color="skyblue", edgecolor="black", range=[0, df.max()])
     plt.title(title, fontweight="bold")
     plt.ylabel(y_label)
     plt.xlabel(x_label)
     plt.grid(alpha=0.75)
+    if color_value_above > 0:
+        for patch in arr.patches:
+            if patch.xy[0] >= color_value_above:
+                patch.set_facecolor("orange")
+        custom_patch_1 = plt.Rectangle((0, 0), 1, 1, fc="skyblue", edgecolor="black",
+                                       label=f"< {color_value_above} %")
+        custom_patch_2 = plt.Rectangle((0, 0), 1, 1, fc="orange", edgecolor="black",
+                                       label=f"≥ {color_value_above} %")
+        plt.legend(handles=[custom_patch_1, custom_patch_2])
     _show_and_export(plt, show, exportname)
 
 
@@ -138,10 +159,12 @@ def make_compare_violinplt(df1: DataFrame,
                            show: bool = True,
                            exportname: str = ""):
     _set_fonts()
+    df1.sort_values(by=COL_STATION_ID, inplace=True)
+    df1.reset_index(inplace=True)
+    df2.sort_values(by=COL_STATION_ID, inplace=True)
+    df2.reset_index(inplace=True)
     combined_df = pd.DataFrame({name1: df1[COL_ABS_ERROR], name2: df2[COL_ABS_ERROR]})
     combined_df.dropna(inplace=True)
-    combined_df.sort_values(by=name1, inplace=True)
-    combined_df.sort_values(by=name2, inplace=True)
     plt.violinplot(combined_df.values, showmedians=True)
     plt.title(f"Verteilung vom MAE Modelle\n({name1} und {name2}) zu den DWD-Stationen", fontweight="bold")
     plt.ylabel("MAE Bedeckungsgrad [%]")
@@ -152,9 +175,8 @@ def make_compare_violinplt(df1: DataFrame,
     _show_and_export(plt, show, exportname)
 
 
-def show_metrics(df: DataFrame, model: str, show: bool = True):
-    da.calc_abs_error(df, "TCDC", "V_N")
-    stations_info = da.get_abs_error_each_station(df)
+def show_error_metrics(df: DataFrame, model: str, show: bool = True):
+    stations_info = da.get_mean_abs_error_each_station(df)
     me_mae_rmse = da.get_me_mae_rmse(df, "TCDC", "V_N")
 
     print(f"\n~~~{model}~~~\n")
@@ -162,24 +184,24 @@ def show_metrics(df: DataFrame, model: str, show: bool = True):
     print(f"Mittlere abs. Fehler (MAE): {me_mae_rmse[1]:.2f}% Bedeckungsgrad")
     print(f"Mittlere quad. Fehler (RMSE): {me_mae_rmse[2]:.2f}% Bedeckungsgrad")
     print(f"{len(da.filter_dataframe_by_value(df, COL_ABS_ERROR, 5, False)) / len(df) * 100:.2f}% "
-          f"der Daten haben einen Fehler von < 5% Bedeckungsgrad.")
+          f"der Daten haben einen absoluten Fehler von < 5% Bedeckungsgrad.")
     print(f"{len(da.filter_dataframe_by_value(df, COL_ABS_ERROR, 12.5, False)) / len(df) * 100:.2f}% "
-          f"der Daten haben einen Fehler von < 12,5% Bedeckungsgrad.")
+          f"der Daten haben einen absoluten Fehler von < 12,5% Bedeckungsgrad.")
     print(f"{len(da.filter_dataframe_by_value(df, COL_ABS_ERROR, 85)) / len(df) * 100:.2f}% "
-          f"der Daten haben einen Fehler von > 85% Bedeckungsgrad.")
-
+          f"der Daten haben einen absoluten Fehler von > 85% Bedeckungsgrad.")
     make_hist(stations_info[COL_MEAN_ABS_ERROR],
               f"Verteilung des MAE von {model} zu den DWD-Stationen\n(Anzahl DWD-Stationen: {len(stations_info)})",
               f"Anzahl DWD-Stationen",
               f"MAE vom Bedeckungsgrad [%]",
-              20,
+              30,
               show,
-              f"Verteilung_MAE_{model}_DWD_Stationen.svg")
+              f"Verteilung_MAE_{model}_DWD_Stationen.svg",
+              12.5)
     make_hist(df[COL_ABS_ERROR],
               f"Verteilung des absoluten Fehlers von {model} zu den DWD-Stationen\n(Anzahl Daten: {len(df)})",
               f"Anzahl berechnete Modelldaten",
               f"Absoluter Fehler vom Bedeckungsgrad [%]",
-              20,
+              40,
               show,
               f"MAE_{model}_DWD_Stationen.svg")
     # unique_station_heights = pd.DataFrame(df[COL_STATION_HEIGHT].unique(), columns=[COL_STATION_HEIGHT])
@@ -242,6 +264,7 @@ def make_scatterplot_dwd_locations(df: DataFrame,
         sc = ax.scatter(df_data[COL_LON], df_data[COL_LAT],
                         c=df_data[COL_ABS_ERROR],
                         cmap="rainbow",
+                        vmin=0,
                         s=35,
                         alpha=0.80,
                         edgecolor="black",
@@ -273,11 +296,11 @@ def make_scatterplots_cloud_coverage(model_data_icon_d2_area_1: str,
                                      exportname: str = ""):
     data_icon_d2_area_1 = load(model_data_icon_d2_area_1)
     data_icon_eu_area_1 = load(model_data_icon_eu_area_1)
-    dwd_locs_area_1 = load(dwd_data_area_1)
+    dwd_locs_area_1 = load(dwd_data_area_1).dropna().reset_index()
 
     data_icon_d2_area_2 = load(model_data_icon_d2_area_2)
     data_icon_eu_area_2 = load(model_data_icon_eu_area_2)
-    dwd_locs_area_2 = load(dwd_data_area_2)
+    dwd_locs_area_2 = load(dwd_data_area_2).dropna().reset_index()
 
     _set_fonts(1.7)
     date = data_icon_d2_area_1[COL_DATE].iloc[0]
@@ -339,6 +362,12 @@ def show_used_areas_dwd_stations(df_data: DataFrame,
     _show_and_export(plt, show, exportname)
 
 
+def calc_dwd_outliers(df: DataFrame) -> DataFrame:
+    abs_error = da.get_mean_abs_error_each_station(df)
+    dwd_station_outliers = da.calc_custom_z_score(abs_error, COL_MEAN_ABS_ERROR, 12.5)
+    return dwd_station_outliers.loc[dwd_station_outliers[COL_MEAN_ABS_ERROR] >= 12.5]
+
+
 def load(filename: str) -> DataFrame:
     if not os.path.exists(filename):
         raise FileExistsError
@@ -350,21 +379,31 @@ def load(filename: str) -> DataFrame:
 show_plot = False
 
 # Loading CSV-Files
-df_d2 = load(CSV_NAME_ICON_D2)
-df_eu = load(CSV_NAME_ICON_EU)
+# df_d2_cloud_only = load(CSV_NAME_ICON_D2)
+# df_eu_cloud_only = load(CSV_NAME_ICON_EU)
+df_d2_full = load(f".\\all_param_data_ICON_D2.csv")
+df_d2_cloud_only = _drop_param(df_d2_full, ["D", "F", "RF_TU", "TT_TU", "P", "P0"])
+df_eu_full = load(".\\all_param_data_ICON_EU.csv")
+df_eu_cloud_only = _drop_param(df_eu_full, ["D", "F", "RF_TU", "TT_TU", "P", "P0"])
 
 # Show all used DWD-Locations
-make_scatterplot_dwd_locations(df_d2, show_plot, "Verwendete_DWD-Stationen.svg")
-print(f"Anzahl verwendeter DWD-Stationen in ICON-D2: {len(df_d2[COL_STATION_HEIGHT].unique())}")
-print(f"Anzahl verwendeter DWD-Stationen in ICON-EU: {len(df_eu[COL_STATION_HEIGHT].unique())}")
+
+make_scatterplot_dwd_locations(df_d2_cloud_only, show_plot, "Verwendete_DWD-Stationen.svg")
+print(f"Anzahl verwendeter DWD-Stationen in ICON-D2: {len(df_d2_cloud_only[COL_STATION_HEIGHT].unique())}")
+print(f"Anzahl verwendeter DWD-Stationen in ICON-EU: {len(df_eu_cloud_only[COL_STATION_HEIGHT].unique())}")
 
 # Calculate Errors (RMSE, MAE, ME) and show it as text and as diagramm
-show_metrics(df_d2, MODEL_ICON_D2, show_plot)
-show_metrics(df_eu, MODEL_ICON_EU, show_plot)
+da.calc_abs_error(df_d2_cloud_only, "TCDC", "V_N")
+da.calc_abs_error(df_eu_cloud_only, "TCDC", "V_N")
+show_error_metrics(df_d2_cloud_only, MODEL_ICON_D2, show_plot)
+show_error_metrics(df_eu_cloud_only, MODEL_ICON_EU, show_plot)
 
 # Show Errors between Forecasts
-compare_fcst_error(df_d2, MODEL_ICON_D2, show_plot, "Fehler_zwischen_den_Prognosezeitpunkten_vom_ICON_D2.svg")
-compare_fcst_error(df_eu, MODEL_ICON_EU, show_plot, "Fehler_zwischen_den_Prognosezeitpunkten_vom_ICON_EU.svg")
+compare_fcst_error(df_d2_cloud_only, MODEL_ICON_D2, show_plot, "Fehler_zwischen_den_Prognosezeitpunkten_vom_ICON_D2.svg")
+compare_fcst_error(df_eu_cloud_only, MODEL_ICON_EU, show_plot, "Fehler_zwischen_den_Prognosezeitpunkten_vom_ICON_EU.svg")
+
+# Show used areas in germany for the example plot
+show_used_areas_dwd_stations(df_d2_cloud_only, show_plot, f".\\DWD_Station_Cloud_Coverage.svg")
 
 # Show Weather example plot
 make_scatterplots_cloud_coverage(f".\\Area_I_ICON-D2.csv",
@@ -376,15 +415,21 @@ make_scatterplots_cloud_coverage(f".\\Area_I_ICON-D2.csv",
                                  show_plot,
                                  f".\\Cloud_Coverage_Compare_ICON-D2_ICON-EU.png")
 
-show_used_areas_dwd_stations(df_d2, show_plot, f".\\DWD_Station_Cloud_Coverage.svg")
-
-make_compare_violinplt(df_d2, MODEL_ICON_D2, df_eu, MODEL_ICON_EU, show_plot,
+# Show compare of MAE from ICON-D2 and ICON-EU
+make_compare_violinplt(df_d2_cloud_only, MODEL_ICON_D2, df_eu_cloud_only, MODEL_ICON_EU, show_plot,
                        f".\\MAE_Vergleich_ViolinPlt_ICON_D2_ICON_EU.svg")
 
-make_scatterplot_dwd_locations(df_d2, show_plot, f".\\MAE_vergleich_ICON-D2_DWD_gesamt_D.svg",
+# Show MAE for each DWD-Station and ICON-D2 / ICON-EU
+make_scatterplot_dwd_locations(df_d2_cloud_only, show_plot, f".\\MAE_vergleich_ICON-D2_DWD_gesamt_D.svg",
                                MODEL_ICON_D2, True)
-make_scatterplot_dwd_locations(df_eu, show_plot, f".\\MAE_vergleich_ICON-EU_DWD_gesamt_D.svg",
+make_scatterplot_dwd_locations(df_eu_cloud_only, show_plot, f".\\MAE_vergleich_ICON-EU_DWD_gesamt_D.svg",
                                MODEL_ICON_EU, True)
+
+# D2 - Calculate outliers in the data
+dwd_outlier_d2 = calc_dwd_outliers(df_d2_cloud_only)
+
+# explorative dataanalysis for each dwd param
+
 
 # print(f"Median vom absoluten Fehler zwischen ICON-D2 und DWD-Stationen: {df_d2[COL_ABS_ERROR].median():.2f}%")
 # print(f"Median vom absoluten Fehler zwischen ICON-EU und DWD-Stationen: {df_eu[COL_ABS_ERROR].median():.2f}%")

@@ -46,6 +46,7 @@ COL_DWD_LOADED: str = "Loaded"
 # Column names for Dataanalysis
 COL_ABS_ERROR: str = "Absolute_Error"
 COL_MEAN_ABS_ERROR: str = "Mean_Absolute_Error"
+COL_Z_SCORE: str = "Z_SCORE"
 
 # Header Error Metric
 COL_ME: str = "ME"

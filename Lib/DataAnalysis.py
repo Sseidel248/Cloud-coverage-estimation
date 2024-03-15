@@ -19,6 +19,7 @@ Each function is documented with a detailed description, parameters, and return 
 import numpy as np
 import pandas as pd
 from pandas import DataFrame, Series
+from scipy import stats
 from typing import Tuple
 from Lib.IOConsts import *
 
@@ -58,7 +59,8 @@ def filter_dataframe_by_value(df: DataFrame, column_name: str, value: float, gre
 
 def calc_abs_error(df: DataFrame, col_model: str, col_dwd: str) -> None:
     """
-    Calculates the absolute error between two columns in a DataFrame and adds the result as a new column.
+    Calculates the absolute error between two columns in a DataFrame and adds the result as a new column named
+    "Absolute_Error".
 
     :param df: The DataFrame containing the columns to be compared.
     :param col_model: The name of the first column to be used in the calculation.
@@ -95,7 +97,7 @@ def get_error_metric_each_station(df: DataFrame, col_model: str, col_dwd: str) -
     return station_error_metrics
 
 
-def get_abs_error_each_station(df: DataFrame) -> DataFrame:
+def get_mean_abs_error_each_station(df: DataFrame) -> DataFrame:
     """
     Calculates the mean absolute error for each station in the DataFrame.
 
@@ -128,13 +130,40 @@ def get_me_mae_rmse(df: DataFrame, col_model: str, col_dwd: str) -> Tuple[float,
     return me, mae, rmse
 
 
-def get_dwd_height_details(df: DataFrame) -> Series:
+def get_dwd_col_details(df: DataFrame, col_name: str) -> Series:
     """
     Provides descriptive statistics for the station height column in the given DataFrame.
 
     :param df: The DataFrame containing the height data of the stations.
+    :param col_name: Specifies the column to be described.
     :return: A pandas Series containing descriptive statistics (count, mean, std, min, 25%, 50%, 75%, max)
-             for the station height column.
+             for a dwd-station data column.
     """
-    _check_column_name_exist(df, COL_STATION_HEIGHT)
-    return df[COL_STATION_HEIGHT].describe()
+    _check_column_name_exist(df, col_name)
+    return df[col_name].describe()
+
+
+def calc_custom_z_score(df: DataFrame, col_name: str, limit: float) -> DataFrame:
+    """
+    Calculates a custom Z-Score for a specified column in a Pandas DataFrame and adds it as a new column named
+    "Z_SCORE".
+
+    This custom Z-Score is computed using a modified formula: (value - limit) / custom_standard_deviation, where the
+    custom standard deviation is calculated based on the difference from a specified limit rather than the mean of the
+    column. This function checks if the specified column name exists in the DataFrame, calculates the custom Z-Score
+    for each value in the column using the specified limit, and then adds these custom Z-Scores as a new column to the
+    DataFrame.
+
+    :param df: A Pandas DataFrame containing the data.
+    :param col_name: The name of the column for which to calculate the custom Z-Score.
+    :param limit: A float representing the limit used to calculate the difference for the custom Z-Score instead of
+    using the mean.
+    :return: The original DataFrame with an additional column named "Z_SCORE" for the custom Z-Score of the specified
+    column.
+    """
+    _check_column_name_exist(df, col_name)
+    custom_std = np.sqrt(np.sum((df[col_name] - limit)**2) / df[col_name].count()-1)
+    df[COL_Z_SCORE] = (df[col_name] - limit) / custom_std
+    return df
+
+

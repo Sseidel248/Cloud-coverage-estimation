@@ -14,7 +14,7 @@ from tqdm import tqdm
 _WGRIB2_EXE: str = f"{os.path.dirname(os.path.abspath(__file__))}\\wgrib2\\wgrib2.exe"
 
 
-def split_coords(coords, n=50):
+def split_coords(coords, n=100):
     """Divide the coordinate list into sublists with n coordinates each."""
     for i in range(0, len(coords), n):
         yield coords[i:i + n]
