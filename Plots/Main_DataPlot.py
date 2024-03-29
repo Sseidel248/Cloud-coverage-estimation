@@ -216,20 +216,25 @@ def make_qq_plot(df: DataFrame,
     _show_and_export(plt, show, exportname)
 
 
-def show_error_metrics(df: DataFrame, model: str, show: bool = True):
-    stations_info = da.get_mean_abs_error_each_station(df)
-    me_mae_rmse = da.get_me_mae_rmse(df, "TCDC", "V_N")
-
-    print(f"\n~~~{model}~~~\n")
+def show_me_mae_rmse(df: DataFrame, col_model: str, col_dwd: str):
+    me_mae_rmse = da.get_me_mae_rmse(df, col_model, col_dwd)
     print(f"Mittlerer Fehler (ME): {me_mae_rmse[0]:.2f}% Bedeckungsgrad")
     print(f"Mittlere abs. Fehler (MAE): {me_mae_rmse[1]:.2f}% Bedeckungsgrad")
     print(f"Mittlere quad. Fehler (RMSE): {me_mae_rmse[2]:.2f}% Bedeckungsgrad")
+
+
+def show_error_metrics(df: DataFrame, model: str, show: bool = True):
+    stations_info = da.get_mean_abs_error_each_station(df)
+    print(f"\n~~~{model}~~~\n")
+    show_me_mae_rmse(df, "TCDC", "V_N")
     print(f"{len(da.filter_dataframe_by_value(df, COL_ABS_ERROR, 5, False)) / len(df) * 100:.2f}% "
           f"der Daten haben einen absoluten Fehler von < 5% Bedeckungsgrad.")
     print(f"{len(da.filter_dataframe_by_value(df, COL_ABS_ERROR, 12.5, False)) / len(df) * 100:.2f}% "
           f"der Daten haben einen absoluten Fehler von < 12,5% Bedeckungsgrad.")
-    print(f"{len(da.filter_dataframe_by_value(df, COL_ABS_ERROR, 85)) / len(df) * 100:.2f}% "
-          f"der Daten haben einen absoluten Fehler von > 85% Bedeckungsgrad.")
+    print(f"{len(da.filter_dataframe_by_value(df, COL_ABS_ERROR, 25, False)) / len(df) * 100:.2f}% "
+          f"der Daten haben einen absoluten Fehler von < 25% Bedeckungsgrad.")
+    print(f"{len(da.filter_dataframe_by_value(df, COL_ABS_ERROR, 75)) / len(df) * 100:.2f}% "
+          f"der Daten haben einen absoluten Fehler von > 75% Bedeckungsgrad.")
     make_hist(stations_info[COL_MEAN_ABS_ERROR],
               f"Verteilung des MAE von {model} zu den DWD-Stationen\n(Anzahl DWD-Stationen: {len(stations_info)})",
               f"Anzahl DWD-Stationen",
@@ -370,6 +375,28 @@ def make_scatterplots_cloud_coverage(model_data_icon_d2_area_1: str,
     _show_as_table("Area 2", dwd_locs_area_2, data_icon_d2_area_2, data_icon_eu_area_2)
 
 
+def make_scatterplot(coords: list[tuple[float, float]],
+                     title: str,
+                     show: bool = True,
+                     exportname: str = ""):
+    lats, lons = zip(*coords)
+    fig, ax = plt.subplots(subplot_kw={"projection": ccrs.PlateCarree()})
+    ax.set_extent([min(lons) - 0.1, max(lons) + 0.1,
+                   min(lats) - 0.1, max(lats) + 0.1],
+                  crs=ccrs.PlateCarree())
+    ax.add_feature(cfeature.COASTLINE)
+    ax.add_feature(cfeature.BORDERS, linestyle=":")
+    ax.add_feature(cfeature.OCEAN)
+    ax.add_feature(cfeature.LAKES, alpha=0.5)
+    ax.add_feature(cfeature.RIVERS)
+    gl = ax.gridlines(draw_labels=True, linewidth=1, color="gray", alpha=0.5, linestyle="--")
+    gl.top_labels = False
+    gl.right_labels = False
+    ax.scatter(lons, lats, color="red", marker="o", s=50, alpha=0.5, transform=ccrs.PlateCarree())
+    ax.set_title(title, fontweight="bold")
+    _show_and_export(plt, show, exportname)
+
+
 def show_used_areas_dwd_stations(df_data: DataFrame,
                                  show: bool = True,
                                  exportname: str = ""):
@@ -402,6 +429,12 @@ def show_used_areas_dwd_stations(df_data: DataFrame,
     _show_and_export(plt, show, exportname)
 
 
+def show_num_of_station(df: DataFrame, drop_cols: list[str], param_descr: str):
+    tmp = df.drop(drop_cols, axis=1).copy()
+    tmp.dropna(inplace=True)
+    print(f"Anzahl Stationen die nur {param_descr} messen können: {len(tmp[COL_STATION_ID].unique())}")
+
+
 def calc_dwd_outliers(df: DataFrame) -> DataFrame:
     abs_error = da.get_mean_abs_error_each_station(df)
     dwd_station_outliers = da.calc_custom_z_score(abs_error, COL_MEAN_ABS_ERROR, 12.5)
@@ -429,8 +462,6 @@ df_eu_cloud_only = _drop_param(df_eu_full, ["D", "F", "RF_TU", "TT_TU", "P", "P0
 
 # Show all used DWD-Locations
 make_scatterplot_dwd_locations(df_d2_cloud_only, show_plot, "ScatPlt_Verwendete_DWD-Stationen.svg")
-print(f"Anzahl verwendeter DWD-Stationen in ICON-D2: {len(df_d2_cloud_only[COL_STATION_HEIGHT].unique())}")
-print(f"Anzahl verwendeter DWD-Stationen in ICON-EU: {len(df_eu_cloud_only[COL_STATION_HEIGHT].unique())}")
 
 # Calculate Errors (RMSE, MAE, ME) and show it as text and as diagramm
 da.calc_abs_error(df_d2_cloud_only, "TCDC", "V_N")
@@ -486,9 +517,24 @@ dwd_params.remove("V_N_I")
 dwd_params.append(COL_STATION_HEIGHT)
 
 # collect all DWD-Stations who can measure all params
+print(f"\n~~~DWD-Stationsinformationen~~~\n")
+print(f"Anzahl aller Stationen (beinhaltet auch Stationshöhe): {len(df_d2_full[COL_STATION_ID].unique())}")
+
 dwd_station_all_param = df_d2_full.dropna().copy()
 print(f"Anzahl der DWD-Stationen die alle Parameter messen: {len(dwd_station_all_param[COL_STATION_ID].unique())}")
 da.calc_abs_error(dwd_station_all_param, "TCDC", "V_N")
+
+show_num_of_station(df_d2_full, ["V_N_I", "D", "F", "RF_TU", "TT_TU", "P", "P0"], "Bewölkungsgrad (V_N)")
+v_n_i_df = df_d2_cloud_only.dropna()
+measurment_counts = v_n_i_df['V_N_I'].value_counts()
+print(f"    Davon wurden {measurment_counts['I'] / len(v_n_i_df) * 100:.2f} % durch ein Instrument aufgenommen.")
+print(f"    Davon wurden {measurment_counts['P'] / len(v_n_i_df) * 100:.2f} % durch eine Person aufgenommen.")
+print(f"    Für {measurment_counts['-999'] / len(v_n_i_df) * 100:.2f} % gab es keine Angaben.")
+
+show_num_of_station(df_d2_full, ["V_N_I", "V_N", "D", "F", "RF_TU", "P", "P0"], "Lufttemperatur (TT_TU)")
+show_num_of_station(df_d2_full, ["V_N_I", "V_N", "D", "F", "TT_TU", "P", "P0"], "relative Feuchte (RF_TU)")
+show_num_of_station(df_d2_full, ["V_N_I", "D", "F", "TT_TU", "RF_TU", "P0"], "Luftdruck auf Meereshöhe NN (P)")
+show_num_of_station(df_d2_full, ["V_N_I", "D", "TT_TU", "RF_TU", "P0"], "Windgeschwindigkeit (F)")
 
 # explorative dataanalysis for each dwd param
 for dwd_param in dwd_params:
@@ -512,8 +558,12 @@ for dwd_param in dwd_params:
     coef, pvaluer = da.calc_corr_coef(pvalue, dwd_station_all_param, COL_ABS_ERROR, dwd_param)
     _print_corr_results(pvalue, coef, pvaluer)
 
-# TODO: Betrachten der Messung durch die Person und durch Instrumente
 print(f"\n~~~Vergleich Instrumentmessung und Personenmessung - Bewölkungsgrad~~~\n")
-# TODO: trennen von DWD Messung P und I
-# TODO: Anzahl anzeigen
-# TODO: Corr Coeffi berechnen und auswerten, wo der größere Fehler liegt
+print(f"Hier werden nur rmse, mae und me berachtet, da ein Zusammenhang zwischen TCDC und V_N definitiv bestehen würde,"
+      f" denn Beide beinhalten den Bewölkungsgrad.")
+print(f"\nFehler: Instrumentmessung")
+show_me_mae_rmse(v_n_i_df[v_n_i_df["V_N_I"] == "I"], "TCDC", "V_N")
+print(f"\nFehler: Personenmessung")
+show_me_mae_rmse(v_n_i_df[v_n_i_df["V_N_I"] == "P"], "TCDC", "V_N")
+
+# TODO: IDW vom ICON-Bwölkungsgrade vergleichen

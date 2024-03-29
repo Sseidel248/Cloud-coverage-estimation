@@ -1,4 +1,3 @@
-
 # Regex Patters for wgrib2.exe out put string
 # PATTERN: str = (r"1:0:d=(\d{10}):(\w+):\w+:(?:(\d+) min fcst|(anl))::.+\s+.+\s+lat (\d+\.\d+) to (\d+\.\d+) by "
 #                 r"(\d+\.\d+)\s+lon (\d+\.\d+) to (\d+\.\d+).+")
@@ -68,5 +67,3 @@ ICON_D2_LAT_MAX: float = 58.08
 ICON_D2_LON_MIN: float = 356.06 - 360  # Prime meridian reference
 ICON_D2_LON_MAX: float = 20.34
 ICON_D2_LAT_LON_DELTA: float = 0.02
-
-

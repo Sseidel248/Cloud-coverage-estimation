@@ -5,6 +5,7 @@ Date:           2024-**-**
 Description:
 """
 import pathlib
+import numpy as np
 from typing import List
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -16,15 +17,25 @@ def get_files(look_up_path: str, extension: str) -> List[str]:
     return files
 
 
-def round_to_nearest_hour(date_time: datetime) -> datetime:
-    rounded_date: datetime = date_time.replace(second=0, microsecond=0, minute=0)
-    if date_time.minute >= 30:
-        rounded_date += timedelta(hours=1)
-    return rounded_date
+def round_to_nearest_hour(date_time):
+    if isinstance(date_time, datetime):
+        rounded_date = date_time.replace(second=0, microsecond=0, minute=0)
+        if date_time.minute >= 30:
+            rounded_date += timedelta(hours=1)
+        return rounded_date
+    elif isinstance(date_time, np.datetime64):
+        date_time_in_minutes = date_time.astype("datetime64[m]")
+        minutes = date_time_in_minutes.astype(int) % 60
+        if minutes >= 30:
+            date_time_in_minutes += np.timedelta64(60 - minutes, "m")
+        rounded_date = date_time_in_minutes - np.timedelta64(minutes, "m")
+        return rounded_date.astype("datetime64[h]")
+    else:
+        raise TypeError("Unsupported type. Only datetime.datetime and numpy.datetime64 are supported.")
 
 
 def datetime_to_strf(date_time: datetime) -> str:
-    return date_time.strftime('%Y%m%d%H')
+    return date_time.strftime("%Y%m%d%H")
 
 
 def hours_difference(datetime1: datetime, datetime2: datetime) -> float:
@@ -57,4 +68,3 @@ def convert_in_180_180(degree: float) -> float:
     while degree < -180:
         degree += 360
     return degree
-

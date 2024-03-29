@@ -169,7 +169,6 @@ def calc_custom_z_score(df: DataFrame, col_name: str, limit: float) -> DataFrame
 
 
 def calc_corr_coef(pvalue: float, df: DataFrame, col_name1: str, col_name2: str) -> Tuple[float, float]:
-
     _check_column_name_exist(df, col_name1)
     _check_column_name_exist(df, col_name2)
     data = df[[col_name1, col_name2]].dropna()
@@ -180,3 +179,4 @@ def calc_corr_coef(pvalue: float, df: DataFrame, col_name1: str, col_name2: str)
     else:
         coef, pvalue = spearmanr(data[col_name1], data[col_name2])
     return coef, pvalue
+
