@@ -21,9 +21,6 @@ from Lib.IOConsts import *
 from matplotlib.colors import LinearSegmentedColormap
 from scipy.spatial.distance import cdist
 
-MOVE_TO: str = "E:\\TUB_Cloud\\03_Master_Studium\\06_Masterarbeit\\Bilder"
-
-
 def _set_fonts(scale: float = 1):
     plt.rcParams["font.family"] = "calibri"
     plt.rcParams["font.size"] = 12 * scale
@@ -35,9 +32,9 @@ def _show_and_export(a_plt: pyplot, show: bool, exportname: str):
     if exportname != "":
         _, ext = os.path.split(exportname)
         if ext == ".png":
-            a_plt.savefig(os.path.join(f".\\", exportname), dpi=900)
+            a_plt.savefig(exportname, dpi=900)
         else:
-            a_plt.savefig(os.path.join(f".\\", exportname))
+            a_plt.savefig(exportname)
     if show:
         a_plt.show()
     else:
@@ -241,7 +238,7 @@ def show_error_metrics(df: DataFrame, model: str, show: bool = True):
               f"MAE vom Bedeckungsgrad [%]",
               30,
               show,
-              f"HistPlt_Verteilung_MAE_{model}_DWD_Stationen.svg",
+              f".\\plots\\HistPlt_Verteilung_MAE_{model}_DWD_Stationen.svg",
               0,
               12.5)
     make_hist(df[COL_ABS_ERROR],
@@ -250,7 +247,7 @@ def show_error_metrics(df: DataFrame, model: str, show: bool = True):
               f"Absoluter Fehler vom Bedeckungsgrad [%]",
               40,
               show,
-              f"HistPlt_MAE_{model}_DWD_Stationen.svg")
+              f".\\plots\\HistPlt_MAE_{model}_DWD_Stationen.svg")
 
 
 def compare_fcst_error(df: DataFrame,
@@ -455,13 +452,13 @@ dwd_params = ["V_N", "V_N_I", "D", "F", "RF_TU", "TT_TU", "P", "P0"]
 # Loading CSV-Files
 # df_d2_cloud_only = load(CSV_NAME_ICON_D2)
 # df_eu_cloud_only = load(CSV_NAME_ICON_EU)
-df_d2_full = load(f".\\all_param_data_ICON_D2.csv")
+df_d2_full = load(f".\\datas\\all_param_data_ICON_D2.csv")
 df_d2_cloud_only = _drop_param(df_d2_full, ["D", "F", "RF_TU", "TT_TU", "P", "P0"])
-df_eu_full = load(".\\all_param_data_ICON_EU.csv")
+df_eu_full = load(f".\\datas\\all_param_data_ICON_EU.csv")
 df_eu_cloud_only = _drop_param(df_eu_full, ["D", "F", "RF_TU", "TT_TU", "P", "P0"])
 
 # Show all used DWD-Locations
-make_scatterplot_dwd_locations(df_d2_cloud_only, show_plot, "ScatPlt_Verwendete_DWD-Stationen.svg")
+make_scatterplot_dwd_locations(df_d2_cloud_only, show_plot, f".\\plots\\ScatPlt_Verwendete_DWD-Stationen.svg")
 
 # Calculate Errors (RMSE, MAE, ME) and show it as text and as diagramm
 da.calc_abs_error(df_d2_cloud_only, "TCDC", "V_N")
@@ -471,31 +468,31 @@ show_error_metrics(df_eu_cloud_only, MODEL_ICON_EU, show_plot)
 
 # Show Errors between Forecasts
 compare_fcst_error(df_d2_cloud_only, MODEL_ICON_D2, show_plot,
-                   "VioPlt_Fehler_zwischen_den_Prognosezeitpunkten_vom_ICON_D2.svg")
+                   f".\\plots\\VioPlt_Fehler_zwischen_den_Prognosezeitpunkten_vom_ICON_D2.svg")
 compare_fcst_error(df_eu_cloud_only, MODEL_ICON_EU, show_plot,
-                   "VioPlt_Fehler_zwischen_den_Prognosezeitpunkten_vom_ICON_EU.svg")
+                   f".\\plots\\VioPlt_Fehler_zwischen_den_Prognosezeitpunkten_vom_ICON_EU.svg")
 
 # Show used areas in germany for the example plot
-show_used_areas_dwd_stations(df_d2_cloud_only, show_plot, f".\\ScatPlt_DWD_Station_Cloud_Coverage.svg")
+show_used_areas_dwd_stations(df_d2_cloud_only, show_plot, f".\\plots\\ScatPlt_DWD_Station_Cloud_Coverage.svg")
 
 # Show Weather example plot
-make_scatterplots_cloud_coverage(f".\\Area_I_ICON-D2.csv",
-                                 f".\\Area_I_ICON-EU.csv",
-                                 f".\\DWD-Stations_in_Area_I_ICON-D2.csv",
-                                 f".\\Area_II_ICON-D2.csv",
-                                 f".\\Area_II_ICON-EU.csv",
-                                 f".\\DWD-Stations_in_Area_II_ICON-D2.csv",
+make_scatterplots_cloud_coverage(f".\\datas\\Area_I_ICON-D2.csv",
+                                 f".\\datas\\Area_I_ICON-EU.csv",
+                                 f".\\datas\\DWD-Stations_in_Area_I_ICON-D2.csv",
+                                 f".\\datas\\Area_II_ICON-D2.csv",
+                                 f".\\datas\\Area_II_ICON-EU.csv",
+                                 f".\\datas\\DWD-Stations_in_Area_II_ICON-D2.csv",
                                  show_plot,
-                                 f".\\ScatPlt_Cloud_Coverage_Compare_ICON-D2_ICON-EU.png")
+                                 f".\\plots\\ScatPlt_Cloud_Coverage_Compare_ICON-D2_ICON-EU.png")
 
 # Show compare of MAE from ICON-D2 and ICON-EU
 make_compare_violinplt(df_d2_cloud_only, MODEL_ICON_D2, df_eu_cloud_only, MODEL_ICON_EU, show_plot,
-                       f".\\VioPlt_MAE_Vergleich_ICON_D2_ICON_EU.svg")
+                       f".\\plots\\VioPlt_MAE_Vergleich_ICON_D2_ICON_EU.svg")
 
 # Show difference between MAE for each DWD-Station of ICON-D2 and ICON-EU
 df_diff = df_d2_cloud_only[[COL_STATION_ID, COL_LAT, COL_LON]].copy()
 df_diff[COL_ABS_ERROR] = abs(df_d2_cloud_only[COL_ABS_ERROR] - df_eu_cloud_only[COL_ABS_ERROR])
-make_scatterplot_dwd_locations(df_diff, show_plot, f".\\ScatPlt_Diff_MAE_vergleich_ICON-D2_EU.svg",
+make_scatterplot_dwd_locations(df_diff, show_plot, f".\\plots\\ScatPlt_Diff_MAE_vergleich_ICON-D2_EU.svg",
                                MODEL_ICON_D2, True,
                                "Differenz Fehlerbewölkungsgrad [%]",
                                "Verteilung der Fehlerdifferenzen von ICON-D2 und ICON-EU\n"
@@ -547,12 +544,12 @@ for dwd_param in dwd_params:
               _get_param_x_label(dwd_param),
               30,
               show_plot,
-              f".\\HistPlt_Verteilung_DWD_Param_{dwd_param}.svg",
+              f".\\plots\\HistPlt_Verteilung_DWD_Param_{dwd_param}.svg",
               param_details.min())
     make_qq_plot(param_details,
                  f"QQ-Plot vom Parameter: {dwd_param}",
                  show_plot,
-                 f".\\QQPlot_DWD_Param_{dwd_param}.png")
+                 f".\\plots\\QQPlot_DWD_Param_{dwd_param}.png")
     _, pvalue = da.normaltest(param_details)
     print(f"Normaltest von {dwd_param}: p-Value = {pvalue}")
     coef, pvaluer = da.calc_corr_coef(pvalue, dwd_station_all_param, COL_ABS_ERROR, dwd_param)
@@ -567,7 +564,7 @@ print(f"\nFehler: Personenmessung")
 show_me_mae_rmse(v_n_i_df[v_n_i_df["V_N_I"] == "P"], "TCDC", "V_N")
 
 # calculate DWD-Station locations with idw radius von 0.04°
-df_d2_idw_cloud_only = load(f".\\idw_data_ICON_D2.csv")
+df_d2_idw_cloud_only = load(f".\\datas\\idw_data_ICON_D2.csv")
 da.calc_abs_error(df_d2_idw_cloud_only, "TCDC", "V_N")
 make_compare_violinplt(df_d2_cloud_only, "ICON-D2", df_d2_idw_cloud_only, "ICON-D2 mit IDW", show_plot,
-                       f".\\VioPlt_MAE_Vergleich_ICON_D2_mit_ohne_IDW.svg")
+                       f".\\plots\\VioPlt_MAE_Vergleich_ICON_D2_mit_ohne_IDW.svg")

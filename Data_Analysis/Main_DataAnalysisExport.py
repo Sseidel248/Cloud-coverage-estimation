@@ -236,7 +236,7 @@ def export_cloud_area_csv(dwd_datas: DWDStations,
             dwd_area.loc[idx, "V_N"] = float(tmp["V_N"].iloc[0])
     dwd_area.insert(0, COL_DATE, calc_date)
     dwd_area = data_postprocessing(dwd_area)
-    export_to_csv(dwd_area, f".\\{exportname_dwd}")
+    export_to_csv(dwd_area, exportname_dwd)
 
     # create Modeldata for area
     view_area = create_coordinates_list(start_lat, end_lat, start_lon, end_lon, delta)
@@ -244,7 +244,7 @@ def export_cloud_area_csv(dwd_datas: DWDStations,
                                      param,
                                      calc_date,
                                      view_area)
-    export_to_csv(temp_df, f".\\{exportname_model}")
+    export_to_csv(temp_df, exportname_model)
 
 
 model: str = MODEL_ICON_D2
@@ -275,23 +275,25 @@ dwd_params = ["V_N", "V_N_I"]
 export_df = combine_datas(dwds, grib2_datas, model, param, False, dwd_params)
 
 # contains all params
-# export_all_param_df = combine_datas(dwds, grib2_datas, model, param, True)
+export_all_param_df = combine_datas(dwds, grib2_datas, model, param, True)
 
 # Postprocessing readed datas
 export_df = data_postprocessing(export_df)
-# export_all_param_df = data_postprocessing(export_all_param_df)
+export_all_param_df = data_postprocessing(export_all_param_df)
 
 # save export
-# export_to_csv(export_df, exportname)
-# export_to_csv(export_all_param_df, f"all_param_{exportname}")
+export_to_csv(export_df, f".\\datas\\{exportname}")
+export_to_csv(export_all_param_df, f".\\datas\\all_param_{exportname}")
 
 # calculate IDW Values
 if model == MODEL_ICON_D2:
     export_idw_df = calculate_idw(grib2_datas, export_df, model, param)
-    export_to_csv(export_idw_df, f"idw_{exportname}")
+    export_to_csv(export_idw_df, f".\\datas\\idw_{exportname}")
 
 # create example area for plot some clouds
-# export_cloud_area_csv(dwds, grib2_datas, 52.5, 54.5, 12.0, 14.0, model_delta,
-#                       f"DWD-Stations_in_Area_I_{model}.csv", f"Area_I_{model}.csv")
-# export_cloud_area_csv(dwds, grib2_datas, 47.5, 49.5, 7.5, 9.5, model_delta,
-#                       f"DWD-Stations_in_Area_II_{model}.csv", f"Area_II_{model}.csv")
+export_cloud_area_csv(dwds, grib2_datas, 52.5, 54.5, 12.0, 14.0, model_delta,
+                      f".\\datas\\DWD-Stations_in_Area_I_{model}.csv",
+                      f".\\datas\\Area_I_{model}.csv")
+export_cloud_area_csv(dwds, grib2_datas, 47.5, 49.5, 7.5, 9.5, model_delta,
+                      f".\\datas\\DWD-Stations_in_Area_II_{model}.csv",
+                      f".\\datas\\Area_II_{model}.csv")
