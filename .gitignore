@@ -167,3 +167,4 @@ extracted_station_files
 *.svg
 *.png
 test
+*.mat

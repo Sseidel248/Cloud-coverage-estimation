@@ -1,5 +1,5 @@
 """
-File name:      Main_DataExport.py
+File name:      Main_DataAnalysisExport.py
 Author:         Sebastian Seidel
 Date:           2024.**.**
 """
@@ -82,10 +82,10 @@ def combine_datas(dwd_datas: DWDStations,
         temp_df = model_datas.get_values(model_str, model_param, date, coords_list)
         temp_dfs.append(temp_df)
     vals_model = pd.concat(temp_dfs, ignore_index=True)
-
+    # vals_model Date_UTC and Date_Fcst are identical, because both contains forecast datetime
     vals_dwd.sort_values(by=[COL_DATE, COL_LAT, COL_LON], inplace=True)
     vals_model.sort_values(by=[COL_DATE, COL_LAT, COL_LON], inplace=True)
-
+    # merge vals_model in vals_dwd
     merged_df = pd.merge(vals_dwd, vals_model, on=[COL_DATE, COL_LAT, COL_LON], how='left')
     merged_df.sort_values(by=[COL_STATION_ID, COL_DATE], inplace=True)
 
@@ -96,19 +96,26 @@ def combine_datas(dwd_datas: DWDStations,
     return merged_df
 
 
-# def calculate_idw(model_datas: Grib2Datas,
-#                   merged_df: DataFrame,
-#                   model_str: str,
-#                   model_param: str):
-#     model_dates = merged_df[COL_DATE].unique().tolist()
-#     coords_df = merged_df.drop_duplicates([COL_STATION_ID])[[COL_LAT, COL_LON]]
-#     coords_list = list(zip(coords_df[COL_LAT], coords_df[COL_LON]))
-#     temp_dfs = []
-#     for date in tqdm(model_dates, total=len(model_dates), desc="Processing IDW from Model-Values"):
-#         temp_df = model_datas.get_idw_multiple_values(model_str, model_param, date, coords_list)
-#         temp_dfs.append(temp_df)
-#     result = pd.concat(temp_dfs, ignore_index=True)
-#     return result
+def calculate_idw(model_datas: Grib2Datas,
+                  data_df: DataFrame,
+                  model_str: str,
+                  model_param: str):
+    model_dates = data_df[COL_DATE].unique().tolist()
+    coords_df = data_df.drop_duplicates([COL_STATION_ID])[[COL_LAT, COL_LON]]
+    coords_list = list(zip(coords_df[COL_LAT], coords_df[COL_LON]))
+    temp_dfs = []
+    for date in tqdm(model_dates, total=len(model_dates), desc="Processing IDW from Model-Values"):
+        temp_df = model_datas.get_values_idw(model_str, model_param, date, coords_list)
+        temp_dfs.append(temp_df)
+    idw_df = pd.concat(temp_dfs, ignore_index=True)
+    # Create intersection set from both data frames
+    data_df.sort_values(by=[COL_DATE, COL_LAT, COL_LON], inplace=True)
+    data_df.drop([COL_STATION_HEIGHT, COL_MODEL_FCST_DATE, COL_MODEL_FCST_MIN, CLOUD_COVER],
+                 axis=1,
+                 inplace=True)
+    idw_df.sort_values(by=[COL_DATE, COL_LAT, COL_LON], inplace=True)
+    result_df = pd.merge(data_df, idw_df, on=[COL_DATE, COL_LAT, COL_LON], how="left")
+    return result_df
 
 
 def add_to_csv(filename: str, dwd_datas: DWDStations, dwd_params: list[str]):
@@ -240,7 +247,7 @@ def export_cloud_area_csv(dwd_datas: DWDStations,
     export_to_csv(temp_df, f".\\{exportname_model}")
 
 
-model: str = MODEL_ICON_EU
+model: str = MODEL_ICON_D2
 param: str = CLOUD_COVER
 dwd_path: str = "..\\DWD_Downloader\\WeatherStations\\"
 
@@ -268,24 +275,23 @@ dwd_params = ["V_N", "V_N_I"]
 export_df = combine_datas(dwds, grib2_datas, model, param, False, dwd_params)
 
 # contains all params
-export_all_param_df = combine_datas(dwds, grib2_datas, model, param, True)
+# export_all_param_df = combine_datas(dwds, grib2_datas, model, param, True)
 
 # Postprocessing readed datas
 export_df = data_postprocessing(export_df)
-export_all_param_df = data_postprocessing(export_all_param_df)
-
-# calculate IDW Values
-# export_idw_df = calculate_idw(grib2_datas, export_df, model, param)
-# export_all_param_idw_df = calculate_idw(grib2_datas, export_all_param_df, model, param)
+# export_all_param_df = data_postprocessing(export_all_param_df)
 
 # save export
-export_to_csv(export_df, exportname)
-export_to_csv(export_all_param_df, f"all_param_{exportname}")
-# export_to_csv(export_idw_df, f"idw_{exportname}")
-# export_to_csv(export_all_param_idw_df, f"idw_all_param_{exportname}")
+# export_to_csv(export_df, exportname)
+# export_to_csv(export_all_param_df, f"all_param_{exportname}")
+
+# calculate IDW Values
+if model == MODEL_ICON_D2:
+    export_idw_df = calculate_idw(grib2_datas, export_df, model, param)
+    export_to_csv(export_idw_df, f"idw_{exportname}")
 
 # create example area for plot some clouds
-export_cloud_area_csv(dwds, grib2_datas, 52.5, 54.5, 12.0, 14.0, model_delta,
-                      f"DWD-Stations_in_Area_I_{model}.csv", f"Area_I_{model}.csv")
-export_cloud_area_csv(dwds, grib2_datas, 47.5, 49.5, 7.5, 9.5, model_delta,
-                      f"DWD-Stations_in_Area_II_{model}.csv", f"Area_II_{model}.csv")
+# export_cloud_area_csv(dwds, grib2_datas, 52.5, 54.5, 12.0, 14.0, model_delta,
+#                       f"DWD-Stations_in_Area_I_{model}.csv", f"Area_I_{model}.csv")
+# export_cloud_area_csv(dwds, grib2_datas, 47.5, 49.5, 7.5, 9.5, model_delta,
+#                       f"DWD-Stations_in_Area_II_{model}.csv", f"Area_II_{model}.csv")

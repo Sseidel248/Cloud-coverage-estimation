@@ -98,7 +98,7 @@ class Grib2Datas:
                 data = [data]
             return np.array(data, dtype=dtype)
 
-        np_date_times = conv_to_np(date_times, "datetime64[m]").reshape(-1, 1)
+        np_date_times = conv_to_np(date_times, "datetime64[s]").reshape(-1, 1)
         np_coords = conv_to_np(coords, "float64")
 
         coords_width, coords_len = get_width_len(np_coords)
@@ -118,6 +118,7 @@ class Grib2Datas:
 
         # Prepare vectorize functions - performance by numpy
         np_date_round_func = np.vectorize(gFunc.round_to_nearest_hour)
+        np_date_times_series = pd.Series(np_date_times.flatten())
         np_date_times = np_date_round_func(np_date_times)
         unique_date_times = np.unique(np_date_times)
         np_closest_grib2_date = np.vectorize(self._get_closest_date)
@@ -126,8 +127,8 @@ class Grib2Datas:
         np_coords = np_conv_coords_func(np_coords)
 
         # define the return DatFrame
-        cols = [COL_DATE, COL_MODEL_FCST_MIN, COL_LAT, COL_LON, param]
-        lat_values, lon_values, value_values, datetimes, fcst_min_values = [], [], [], [], []
+        cols = [COL_DATE, COL_MODEL_FCST_DATE, COL_MODEL_FCST_MIN, COL_LAT, COL_LON, param]
+        lat_values, lon_values, value_values, datetimes, fcst_datetimes, fcst_min_values = [], [], [], [], [], []
         values: DataFrame = DataFrame(columns=cols)
 
         for date in unique_date_times:
@@ -145,7 +146,7 @@ class Grib2Datas:
 
             # Divide coordinates into groups of 50 and execute commands
             res_list = []
-            for coord_grp in split_coords(used_coords, 1500):
+            for coord_grp in split_coords(used_coords, 1000):
                 # run cmd
                 command = f"{_WGRIB2_EXE} {filename} -match {param}"
                 for lat, lon in coord_grp:
@@ -166,7 +167,8 @@ class Grib2Datas:
                 fcst_min_values.append(fcst_min)
         # for Performance - fill DataFrame outside loop
         if len(lat_values) > 0:
-            values = pd.DataFrame({COL_DATE: datetimes,
+            values = pd.DataFrame({COL_MODEL_FCST_DATE: datetimes,
+                                   COL_DATE: np_date_times_series,
                                    COL_MODEL_FCST_MIN: fcst_min_values,
                                    COL_LAT: lat_values,
                                    COL_LON: lon_values,
@@ -356,15 +358,15 @@ def _extract_bz2_archives(bz2_archives: List[str]):
                     extracted_file.write(content)
 
 
-import time
-
-grib2_datas = Grib2Datas()
-grib2_datas.load_folder("..\\DWD_Downloader\\WeatherData\\icon-d2")
-t0 = time.time()
-tmp_df = grib2_datas.get_values_idw(MODEL_ICON_D2, CLOUD_COVER, datetime(2024, 1, 31, 14, 15), [(53, 13), (54, 14)])
-print(tmp_df)
-duration = time.time() - t0
-print(f"Dauer: {duration} sek.")
+# import time
+#
+# grib2_datas = Grib2Datas()
+# grib2_datas.load_folder("..\\DWD_Downloader\\WeatherData\\icon-d2")
+# t0 = time.time()
+# tmp_df = grib2_datas.get_values_idw(MODEL_ICON_D2, CLOUD_COVER, datetime(2024, 1, 31, 14, 15), [(53, 13), (54, 14)])
+# print(tmp_df)
+# duration = time.time() - t0
+# print(f"Dauer: {duration} sek.")
 # tmp_df = grib2_datas.get_values(MODEL_ICON_D2,
 #                                 CLOUD_COVER,
 #                                 [datetime(2024, 2, 5, 18, 36),

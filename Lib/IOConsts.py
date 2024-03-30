@@ -20,9 +20,9 @@ DELETE_BEFORE_START: bool = False
 
 # const dataframes
 COL_MODEL: str = "Model"
-COL_DATE: str = "Date"
+COL_DATE: str = "Date_UTC"
 COL_MODEL_FCST_MIN: str = "Fcst_Minutes"
-COL_MODEL_FCST_DATE: str = "Fcst_Date"
+COL_MODEL_FCST_DATE: str = "Date_Fcst"
 COL_PARAM: str = "Param"
 COL_MODEL_LAT_START: str = "Lat_Start"
 COL_MODEL_LAT_END: str = "Lat_End"

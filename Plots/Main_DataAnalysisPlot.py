@@ -1,5 +1,5 @@
 """
-File name:      Main_DataPlot.py
+File name:      Main_DataAnalysisPlot.py
 Author:         Sebastian Seidel
 Date:           2024.**.**
 """
@@ -566,4 +566,8 @@ show_me_mae_rmse(v_n_i_df[v_n_i_df["V_N_I"] == "I"], "TCDC", "V_N")
 print(f"\nFehler: Personenmessung")
 show_me_mae_rmse(v_n_i_df[v_n_i_df["V_N_I"] == "P"], "TCDC", "V_N")
 
-# TODO: IDW vom ICON-Bwölkungsgrade vergleichen
+# calculate DWD-Station locations with idw radius von 0.04°
+df_d2_idw_cloud_only = load(f".\\idw_data_ICON_D2.csv")
+da.calc_abs_error(df_d2_idw_cloud_only, "TCDC", "V_N")
+make_compare_violinplt(df_d2_cloud_only, "ICON-D2", df_d2_idw_cloud_only, "ICON-D2 mit IDW", show_plot,
+                       f".\\VioPlt_MAE_Vergleich_ICON_D2_mit_ohne_IDW.svg")
