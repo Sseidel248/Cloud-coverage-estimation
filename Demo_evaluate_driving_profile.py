@@ -8,7 +8,7 @@ g2r.load_folder(".\\DWD_Downloader\\WeatherData\\icon-d2")
 # Csv-file must contain following columns: datetime_UTC, lat, lon
 car_profile = pd.read_csv("example_driving_profile.csv")
 # Specify formatting of the date string
-datetimes = pd.to_datetime(car_profile["datetime_UTC"], format="%d-%b-%Y %H:%M:%S")
+datetimes = pd.to_datetime(car_profile["datetime_UTC"], format="%Y-%m-%d %H:%M:%S")
 lats = car_profile["lat"]
 lons = car_profile["lon"]
 # Create an list with coordinates list[tuple(float, float)]

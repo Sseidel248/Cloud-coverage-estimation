@@ -7,7 +7,7 @@ from datetime import datetime
 class TestGeneralFunctions(unittest.TestCase):
     def test_get_files(self):
         self.assertEqual(0, len(gFunc.get_files(tc.TEST_DIR_EMPTY, ".txt")))
-        self.assertEqual(1, len(gFunc.get_files(tc.TEST_DIR_DWD, ".txt")))
+        self.assertEqual(2, len(gFunc.get_files(tc.TEST_DIR_DWD, ".txt")))
 
     def test_round_to_nearest_hour(self):
         self.assertEqual(gFunc.round_to_nearest_hour(datetime(2023, 12, 27, 10, 27)),

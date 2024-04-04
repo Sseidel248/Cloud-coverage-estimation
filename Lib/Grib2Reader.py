@@ -7,48 +7,75 @@ import numpy as np
 import Lib.GeneralFunctions as gFunc
 from typing import List, Tuple
 from numpy.typing import NDArray
-from pandas import DataFrame, Series
+from pandas import DataFrame
 from datetime import datetime, timedelta
 from Lib.IOConsts import *
 from tqdm import tqdm
 
-# Wgrib2 file
+# wgrib2 file
 _WGRIB2_EXE: str = f"{os.path.dirname(os.path.abspath(__file__))}\\wgrib2\\wgrib2.exe"
 
 
-def split_coords(coords, n=100):
+def split_coords(coords, n=1000):
     """Divide the coordinate list into sublists with n coordinates each."""
     for i in range(0, len(coords), n):
         yield coords[i:i + n]
 
 
 class Grib2Datas:
+    """
+    This class is used to read Grib2 files.
+    For my tests, the Grib2 files come from the DWD. The values of the parameters can then be read out for loaded times
+    and coordinates.
+
+    Attributes:
+        df (DataFrame): contains all successfully loaded Grib2 files
+        df_models (DataFrame): contains all information on the corresponding models that were recognized during loading
+        (currently only ICON-D2 and ICON-EU)
+        df_invalid (DataFrame): contains all loaded files that have a forecast greater than 120 minutes
+
+    get_values(...) - is used to read out the parameter values
+    get_values_idw(...) - reads out surrounding values in addition to the desired value and calculates an inverse
+    distance weighting
+    """
+
     def __init__(self):
         cols = [COL_MODEL, COL_PARAM, COL_DATE, COL_MODEL_FCST_MIN, COL_MODEL_FCST_DATE, COL_MODEL_FILENAME]
         datatypes = {
-            COL_MODEL: 'str',
-            COL_PARAM: 'str',
-            COL_DATE: 'datetime64[ns]',
-            COL_MODEL_FCST_MIN: 'int',
-            COL_MODEL_FCST_DATE: 'datetime64[ns]',
-            COL_MODEL_FILENAME: 'str'
+            COL_MODEL: "str",
+            COL_PARAM: "str",
+            COL_DATE: "datetime64[s]",
+            COL_MODEL_FCST_MIN: "int",
+            COL_MODEL_FCST_DATE: "datetime64[s]",
+            COL_MODEL_FILENAME: "str"
         }
         self.df: DataFrame = DataFrame(columns=cols).astype(datatypes)
         self.df_invalid: DataFrame = DataFrame(columns=cols).astype(datatypes)
         cols = [COL_MODEL, COL_PARAM, COL_MODEL_LAT_START, COL_MODEL_LAT_END, COL_MODEL_LON_START, COL_MODEL_LON_END,
                 COL_MODEL_LATLON_DELTA]
         datatypes = {
-            COL_MODEL: 'str',
-            COL_PARAM: 'str',
-            COL_MODEL_LAT_START: 'float',
-            COL_MODEL_LAT_END: 'float',
-            COL_MODEL_LON_START: 'float',
-            COL_MODEL_LON_END: 'float',
-            COL_MODEL_LATLON_DELTA: 'float'
+            COL_MODEL: "str",
+            COL_PARAM: "str",
+            COL_MODEL_LAT_START: "float",
+            COL_MODEL_LAT_END: "float",
+            COL_MODEL_LON_START: "float",
+            COL_MODEL_LON_END: "float",
+            COL_MODEL_LATLON_DELTA: "float"
         }
         self.df_models: DataFrame = DataFrame(columns=cols).astype(datatypes)
 
     def load_folder(self, path: str):
+        """
+        Loads .grib2 files from a specified folder after extracting .bz2 archives within that folder. This method first
+        checks if the folder exists and raises a FileNotFoundError if not. It then finds and extracts all .bz2 archives
+        in the folder and subsequently loads all .grib2 files found. The method raises a FileNotFoundError if no .grib2
+        files are found in the folder. Finally, it performs data validation and sorts the DataFrame by model and date.
+
+        :param path: The path to the folder containing .bz2 archives and .grib2 files. It's checked for existence, and
+          operations are performed within it.
+        :return: None. This method does not return anything but updates the class attribute 'df' by loading, validating,
+          and sorting data from .grib2 files.
+        """
         if not os.path.exists(path):
             raise FileNotFoundError(f"Folder: '{path}' not exist.")
         bz2_archives = gFunc.get_files(path, ".bz2")
@@ -61,34 +88,42 @@ class Grib2Datas:
         self._data_validation()
         self.df = self.df.sort_values(by=[COL_MODEL, COL_DATE])
 
-    def count(self) -> int:
-        return len(self.df)
-
-    def get_used_datetimes(self, model: str = '') -> Series:
-        if model != '':
-            return self.df[self.df[COL_MODEL] == model][COL_MODEL_FCST_DATE]
-        else:
-            return self.df[COL_MODEL_FCST_DATE]
-
-    def get_datetime_range(self, model: str = "") -> (datetime, datetime):
-        return self._datetime_start(model), self._datetime_end(model)
-
-    def exist_datetime(self, date_time: datetime, model: str = "") -> bool:
-        if model == "":
-            return not self.df[self.df[COL_MODEL_FCST_DATE] == date_time].empty
-        return not self.df[(self.df[COL_MODEL] == model) &
-                           (self.df[COL_MODEL_FCST_DATE] == date_time)].empty
-
     def get_values(self,
                    model: str,
                    param: str,
                    date_times: datetime | List[datetime],
                    coords: Tuple[float, float] | List[Tuple[float, float]]) -> DataFrame:
+        """
+        Retrieves values for a specified model and parameter across given date-times and coordinates, handling both
+        singular and multiple inputs for date-times and coordinates. It processes input arrays to ensure compatibility
+        with the expected dimensions, performs validations, and executes a series of operations to fetch and compile
+        the relevant data into a DataFrame.
+
+        :param model: The model name as a string to filter the data.
+        :param param: The parameter name as a string for which values are retrieved.
+        :param date_times: A datetime object or a list of datetime objects specifying the date-times for which values
+          are requested.
+        :param coords: A tuple of floats representing a single coordinate pair (latitude, longitude) or a list of such
+          tuples for multiple coordinates.
+
+        :returns: A pandas DataFrame containing the fetched data, structured with columns for dates, forecast dates,
+        forecast minutes, latitudes, longitudes, and the specified parameter values.
+
+        The method performs several key steps:
+        - Validates and reshapes the input data for date_times and coords to conform to expected dimensions.
+        - Rounds date_times to the nearest hour and finds the closest available date in the dataset.
+        - Converts coordinates into a standard format.
+        - Fetches the corresponding data for each unique date-time and coordinate pair, executing external commands if
+          necessary and parsing the output.
+        - Compiles and returns the results in a structured DataFrame.
+
+        Raises a ValueError if the dimensions of the input arrays are incompatible or if both date_times and coords have
+          more than one dimension but not matching lengths.
+        """
 
         def get_width_len(arr: NDArray) -> Tuple[int, int]:
-            if len(arr.shape) == 0:
-                return 1, 1
-            elif len(arr.shape) == 1:
+            # len(arr) == 1 then there is no second value
+            if len(arr.shape) == 1:
                 return arr.shape[0], 1
             else:
                 return arr.shape[1], arr.shape[0]
@@ -104,9 +139,6 @@ class Grib2Datas:
         coords_width, coords_len = get_width_len(np_coords)
         date_times_width, date_times_len = get_width_len(np_date_times)
 
-        if date_times_width != 1:
-            raise ValueError(f"The parameter 'date_times' has an incorrect dimensioning. Shape must be (n, 1).")
-
         if coords_width != 2:
             raise ValueError(f"The parameter 'coords' has an incorrect dimensioning. Shape must be (n, 2).")
 
@@ -115,6 +147,9 @@ class Grib2Datas:
                 np_date_times = np.full((coords_len, 1), np_date_times[0])
             if coords_len == 1:
                 np_coords = np.full((date_times_len, 2), np_coords)
+            if date_times_len > 1 and coords_len > 1:
+                raise ValueError(f"Only one parameter may have a length of 1. "
+                                 f"Coords must be (n, 2) and 'date_times' must be (n, 1)")
 
         # Prepare vectorize functions - performance by numpy
         np_date_round_func = np.vectorize(gFunc.round_to_nearest_hour)
@@ -182,8 +217,35 @@ class Grib2Datas:
                        date_times: datetime | List[datetime],
                        coords: Tuple[float, float] | List[Tuple[float, float]],
                        radius: float = 0.04) -> DataFrame:
+        """
+        Retrieves interpolated values for a specified model and parameter at given date-times and coordinates using
+        Inverse Distance Weighting (IDW). This method supports both single and multiple date-times and coordinates. It
+        calculates interpolated values within a specified radius [°] around each coordinate, adjusting for the influence
+        of nearby data points based on their distance.
 
-        def idw(group, dist_col, value_col, q=2):
+        :param model: The model name as a string, used to filter the dataset.
+        :param param: The parameter name as a string, indicating which values to retrieve and interpolate.
+        :param date_times: A single datetime object or a list of datetime objects specifying the date-times for the
+          interpolation.
+        :param coords: A single tuple of (latitude, longitude) or a list of tuples for multiple coordinates where
+          interpolation is desired.
+        :param radius: A float specifying the radius around each coordinate to consider for the interpolation, with a
+          default value of 0.04°.
+
+        :returns: A pandas DataFrame with the interpolated values for the specified parameter at each provided
+          coordinate and date-time. The DataFrame includes columns for dates, latitudes, longitudes, and the specified
+          parameter.
+
+        This method first expands the given coordinates to include nearby points within the specified radius and then
+        retrieves the values for these points. It calculates the IDW interpolated value for each original coordinate
+        based on the retrieved values and their distances. The resulting DataFrame contains the original date-times,
+        coordinates, and interpolated parameter values.
+
+        Raises:
+        - ValueError: If input dimensions or types are not as expected, or if any other input validations fail.
+        """
+
+        def idw(group, dist_col, value_col, q=1):
             # Avoid division by zero
             group[dist_col] = np.where(group[dist_col] == 0, group[dist_col] + 1e-10, group[dist_col])
             d = group[dist_col]
@@ -225,55 +287,67 @@ class Grib2Datas:
         df.drop(["idw_id", "distances"], axis=1, inplace=True)
         return df
 
-    def _datetime_start(self, model: str = "") -> datetime:
-        if model == "":
-            return self.df[COL_MODEL_FCST_DATE].min()
-        else:
-            filtered_df = self.df[self.df[COL_MODEL] == model]
-            return filtered_df[COL_MODEL_FCST_DATE].min()
-
-    def _datetime_end(self, model: str = "") -> datetime:
-        if model == "":
-            return self.df[COL_MODEL_FCST_DATE].max()
-        else:
-            filtered_df = self.df[self.df[COL_MODEL] == model]
-            return filtered_df[COL_MODEL_FCST_DATE].max()
-
-    def _exist_model(self, model: str) -> bool:
-        return not self.df_models[self.df_models[COL_MODEL] == model].empty
-
-    def _exist_param(self, param: str, model: str) -> bool:
-        if not self._exist_model(model):
-            return False
-        return not self.df_models[self.df_models[COL_PARAM] == param].empty
-
-    def _lat_in_range(self, lat: float, model: str) -> bool:
-        if not self._exist_model(model):
-            return False
-        else:
-            filtered_model = self.df_models[self.df_models[COL_MODEL] == model]
-            return ((filtered_model[COL_MODEL_LAT_START].iloc[0] <= lat <= filtered_model[COL_MODEL_LAT_END].iloc[0])
-                    and not filtered_model.empty)
-
-    def _lon_in_range(self, lon: float, model: str) -> bool:
-        if not self._exist_model(model):
-            return False
-        else:
-            filtered_model = self.df_models[self.df_models[COL_MODEL] == model]
-            return ((filtered_model[COL_MODEL_LON_START].iloc[0] <= lon <= filtered_model[COL_MODEL_LON_END].iloc[0])
-                    and not filtered_model.empty)
-
     def _get_closest_date(self, date_time: datetime) -> datetime:
+        """
+        Finds and returns the date-time in the dataframe closest to the specified date-time.
+
+        This internal method calculates the absolute difference between each forecast date-time in the dataframe and
+        the specified date-time. It then identifies the index of the minimum difference, which corresponds to the
+        closest forecast date-time, and returns this date-time.
+
+        :param date_time: The reference datetime object for which the closest date-time in the dataframe is to be found.
+        :return: A datetime object representing the closest forecast date-time to the specified date_time in the
+          dataframe.
+
+        Note: This method assumes that the dataframe has a column named as per the global variable
+        'COL_MODEL_FCST_DATE' that contains datetime objects.
+        """
         differences = (self.df[COL_MODEL_FCST_DATE] - date_time).abs()
         closest_date_index = differences.idxmin()
         return self.df.loc[closest_date_index, COL_MODEL_FCST_DATE]
 
     def _data_validation(self):
+        """
+        Performs validation checks on the dataframe by filtering out entries with forecast minutes greater than 120.
+
+        This internal method separates invalid entries from the main dataframe into a separate dataframe (`df_invalid`)
+        based on the condition that the forecast minutes (`COL_MODEL_FCST_MIN`) exceed 120 minutes. It then updates the
+        main dataframe to only include valid entries. Additionally, it removes duplicate entries from the `df_models`
+        dataframe.
+
+        Effects:
+        - Populates `self.df_invalid` with entries from `self.df` where forecast minutes are greater than 120.
+        - Updates `self.df` to only include entries where forecast minutes are 120 or less.
+        - Removes duplicate entries from `self.df_models`.
+
+        Note: This method directly modifies the class attributes `self.df`, `self.df_invalid`, and `self.df_models`
+        based on the specified validation criteria.
+        """
         self.df_invalid = self.df[self.df[COL_MODEL_FCST_MIN] > 120]
         self.df = self.df[self.df[COL_MODEL_FCST_MIN] <= 120]
         self.df_models = self.df_models.drop_duplicates()
 
     def _load_file(self, work_file: str):
+        """
+        Processes a single weather forecast file, extracting and storing relevant forecast data.
+
+        This internal method executes a command using the wgrib2 tool to read data from a given weather forecast file
+        (typically .grib2 format). It parses the command's output to extract forecast data, including dates, forecast
+        minutes, model parameters, and coordinates. The extracted data is then added as a new row to the class's main
+        dataframe and the model-specific dataframe.
+
+        :param work_file: The path to the .grib2 file to be processed.
+
+        Effects:
+        - Extracts forecast information from the file, including the forecast model, date, forecast minutes, and
+          geographic coordinates.
+        - Adds a new row with the extracted data to both `self.df` and `self.df_models` dataframes.
+
+        Note: This method assumes the presence of a predefined pattern (PATTERN) to parse the command output and relies
+        on the wgrib2 command-line tool. The method updates class dataframes directly, adding new entries for each
+        processed file.
+        """
+
         command: str = f"{_WGRIB2_EXE} {work_file} -s -grid"
         result = subprocess.run(command, capture_output=True, text=True)
         if LAT_LON in result.stdout:
@@ -306,20 +380,31 @@ class Grib2Datas:
                 self.df_models.loc[len(self.df_models)] = new_row
 
 
-def _calc_idw(values: NDArray, distances: Series, weighting: int):
-    zero_indexes = distances[distances == 0].index
-    distances.drop(zero_indexes, inplace=True)
-    values = np.delete(values, zero_indexes)
-
-    numerator = np.sum(values / distances.values)
-    denominator = np.sum(distances.values ** -weighting)
-    return numerator / denominator
-
-
 def _create_coords_in_radius(lat: float,
                              lon: float,
-                             radius: float = 0.03,
+                             radius: float = 0.04,
                              delta: float = 0.02) -> (List[Tuple[float, float]], List[float]):
+    """
+    Generates a list of coordinate points and their distances from a central point, all within a specified radius.
+
+    This internal method calculates a grid of coordinates around a given central point (latitude and longitude). The
+    grid is defined within a circle of a specified radius around the central point. Each point in the grid is spaced
+    at a specified delta distance apart, both in latitude and longitude directions. The method returns two lists: one
+    containing the coordinates of the points within the radius, and another containing the squared distances of these
+    points from the central point.
+
+    :param lat: The latitude of the central point.
+    :param lon: The longitude of the central point.
+    :param radius: The radius around the central point within which to generate points. Defaults to 0.04°.
+    :param delta: The distance between adjacent points in the grid. Defaults to 0.02°.
+
+    :return: A tuple containing two elements:
+             - A list of tuples, each representing the latitude and longitude of a point within the specified radius.
+             - A list of floats, each representing the squared distance of the corresponding point from the central
+               point.
+
+    Note: The distances are distances, calculated as sqrt((Δlat)^2 + (Δlon)^2), and are rounded to 6 decimal places.
+    """
     points = []
     distances = []
     steps = int(radius / delta)
@@ -327,14 +412,27 @@ def _create_coords_in_radius(lat: float,
         for j in range(-steps, steps + 1):
             new_lat = lat + i * delta
             new_lon = lon + j * delta
-            distance = round((new_lat - lat) ** 2 + (new_lon - lon) ** 2, 6)
-            if distance <= radius ** 2:
+            distance = round(np.sqrt((new_lat - lat) ** 2 + (new_lon - lon) ** 2), 6)
+            if distance <= radius:
                 points.append((new_lat, new_lon))
                 distances.append(distance)
     return points, distances
 
 
 def _get_model(delta: float) -> str:
+    """
+    Determines the weather forecast model based on the specified delta value.
+
+    This internal method maps a given delta (grid spacing) to a specific weather forecast model. The delta is a
+    floating-point number representing the spatial resolution of the model's data. Depending on the delta value, the
+    method assigns a corresponding model name or defaults to a predefined unknown model.
+
+    :param delta: The delta value representing the grid spacing of the weather model.
+    :return: A string representing the model name based on the delta value.
+
+    Note: The method currently supports specific delta values for predefined models. Other delta values will default
+    to a known 'unknown' model identifier.
+    """
     model: str = MODEL_UNKNOWN
     if delta == 0.02:
         model = MODEL_ICON_D2
@@ -344,6 +442,21 @@ def _get_model(delta: float) -> str:
 
 
 def _extract_bz2_archives(bz2_archives: List[str]):
+    """
+    Extracts files from a list of .bz2 archives.
+
+    This method iterates over a list of .bz2 archive paths, extracting the contents of each archive to the same
+    directory as the archive itself. If the extracted file already exists, the method skips the extraction for that
+    archive. This process is used for preparing the data for further processing.
+
+    :param bz2_archives: A list of strings, where each string is a file path to a .bz2 archive that needs to be
+      extracted.
+
+    :return: None. The method performs file extraction side effects but does not return any value.
+
+    Note: This method checks for the existence of the extracted file before attempting extraction to avoid redundant
+    operations.
+    """
     # If there are no archives, then nothing needs to be unpacked
     if len(bz2_archives) == 0:
         return
@@ -356,56 +469,3 @@ def _extract_bz2_archives(bz2_archives: List[str]):
             with open(extracted_path, "wb") as extracted_file, bz2.BZ2File(archive, "rb") as archiv:
                 for content in archiv:
                     extracted_file.write(content)
-
-
-# import time
-#
-# grib2_datas = Grib2Datas()
-# grib2_datas.load_folder("..\\DWD_Downloader\\WeatherData\\icon-d2")
-# t0 = time.time()
-# tmp_df = grib2_datas.get_values_idw(MODEL_ICON_D2, CLOUD_COVER, datetime(2024, 1, 31, 14, 15), [(53, 13), (54, 14)])
-# print(tmp_df)
-# duration = time.time() - t0
-# print(f"Dauer: {duration} sek.")
-# tmp_df = grib2_datas.get_values(MODEL_ICON_D2,
-#                                 CLOUD_COVER,
-#                                 [datetime(2024, 2, 5, 18, 36),
-#                                  datetime(2024, 1, 31, 14, 15)],
-#                                 [(54, 14)])
-# print(tmp_df)
-# tmp_df = grib2_datas.get_values(MODEL_ICON_D2,
-#                                 CLOUD_COVER,
-#                                 [datetime(2024, 2, 5, 18, 36)],
-#                                 [(54, 14), (55, 15)])
-# print(tmp_df)
-# tmp_df = grib2_datas.get_values(MODEL_ICON_D2,
-#                                 CLOUD_COVER,
-#                                 [datetime(2024, 2, 5, 18, 36)],
-#                                 [(54, 14)])
-# print(tmp_df)
-
-# start_lat = 55.0
-# fixed_lon = 99.0
-# num_elements = 1800
-# step_size = 0.02
-#
-# # List comprehension, um die Liste von Koordinaten zu erzeugen
-# coords_list = [(start_lat - i * step_size, fixed_lon) for i in range(num_elements)]
-# t0 = time.time()
-# tmp_df = grib2_datas.get_values(MODEL_ICON_D2,
-#                                 CLOUD_COVER,
-#                                 [datetime(2024, 2, 5, 18, 36)],
-#                                 coords_list)
-# duration = time.time() - t0
-# print(f"Dauer: {duration} sek.")
-# print(f"Länge: {len(tmp_df)}")
-# t0 = time.time()
-# tmp_df = grib2_datas.get_multiple_values(MODEL_ICON_D2,
-#                                          CLOUD_COVER,
-#                                          datetime(2024, 2, 5, 18, 36),
-#                                          coords_list)
-# duration = time.time() - t0
-# print(f"Dauer: {duration} sek.")
-# print(f"Länge: {len(tmp_df)}")
-# print(grib2_datas.get_value(MODEL_ICON_D2, CLOUD_COVER, datetime(2023, 11, 29, 18), 53, 13))
-# print(grib2_datas.get_multiple_values(MODEL_ICON_D2, CLOUD_COVER, datetime(2023, 11, 29, 18), [(53, 13), (54, 13)]))

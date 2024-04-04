@@ -105,7 +105,7 @@ def calculate_idw(model_datas: Grib2Datas,
     coords_list = list(zip(coords_df[COL_LAT], coords_df[COL_LON]))
     temp_dfs = []
     for date in tqdm(model_dates, total=len(model_dates), desc="Processing IDW from Model-Values"):
-        temp_df = model_datas.get_values_idw(model_str, model_param, date, coords_list)
+        temp_df = model_datas.get_values_idw(model_str, model_param, date, coords_list, 0.04)
         temp_dfs.append(temp_df)
     idw_df = pd.concat(temp_dfs, ignore_index=True)
     # Create intersection set from both data frames

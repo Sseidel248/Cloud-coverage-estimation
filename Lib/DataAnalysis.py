@@ -163,7 +163,7 @@ def calc_custom_z_score(df: DataFrame, col_name: str, limit: float) -> DataFrame
     column.
     """
     _check_column_name_exist(df, col_name)
-    custom_std = np.sqrt(np.sum((df[col_name] - limit) ** 2) / df[col_name].count() - 1)
+    custom_std = np.sqrt(np.sum((df[col_name] - limit) ** 2) / len(df[col_name]) - 1)
     df[COL_Z_SCORE] = (df[col_name] - limit) / custom_std
     return df
 

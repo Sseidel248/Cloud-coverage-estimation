@@ -21,6 +21,7 @@ from Lib.IOConsts import *
 from matplotlib.colors import LinearSegmentedColormap
 from scipy.spatial.distance import cdist
 
+
 def _set_fonts(scale: float = 1):
     plt.rcParams["font.family"] = "calibri"
     plt.rcParams["font.size"] = 12 * scale
@@ -138,9 +139,9 @@ def _get_param_x_label(param: str) -> str:
         return "Undefinierter Parameter [-]"
 
 
-def _print_corr_results(pvalue: float, coef_r: float, pvalue_r):
+def _print_corr_results(pvalue_n: float, coef_r: float, pvalue_r):
     # Data not normally distributed
-    if pvalue > 0.05:
+    if pvalue_n > 0.05:
         print(f"Person-Korrelationsberechnung: Koeffizient={coef_r}")
         print(f"Person-Korrelationsberechnung: P-Wert={pvalue_r}")
     # Data normally distributed
@@ -551,13 +552,14 @@ for dwd_param in dwd_params:
                  show_plot,
                  f".\\plots\\QQPlot_DWD_Param_{dwd_param}.png")
     _, pvalue = da.normaltest(param_details)
-    print(f"Normaltest von {dwd_param}: p-Value = {pvalue}")
+    print(f"Normaltest von {dwd_param}: p-Value = {pvalue:.4f}")
     coef, pvaluer = da.calc_corr_coef(pvalue, dwd_station_all_param, COL_ABS_ERROR, dwd_param)
     _print_corr_results(pvalue, coef, pvaluer)
 
 print(f"\n~~~Vergleich Instrumentmessung und Personenmessung - Bewölkungsgrad~~~\n")
-print(f"Hier werden nur rmse, mae und me berachtet, da ein Zusammenhang zwischen TCDC und V_N definitiv bestehen würde,"
-      f" denn Beide beinhalten den Bewölkungsgrad.")
+print(
+    f"Hier werden nur RMSE, MAE und ME betrachtet, da ein Zusammenhang zwischen TCDC und V_N definitiv bestehen würde,"
+    f" denn Beide beinhalten den Bewölkungsgrad.")
 print(f"\nFehler: Instrumentmessung")
 show_me_mae_rmse(v_n_i_df[v_n_i_df["V_N_I"] == "I"], "TCDC", "V_N")
 print(f"\nFehler: Personenmessung")
