@@ -34,7 +34,9 @@ def round_to_nearest_hour(date_time):
         raise TypeError("Unsupported type. Only datetime.datetime and numpy.datetime64 are supported.")
 
 
-def datetime_to_strf(date_time: datetime) -> str:
+def datetime_to_strf(date_time) -> str:
+    if isinstance(date_time, np.datetime64):
+        date_time = date_time.astype(datetime)
     return date_time.strftime("%Y%m%d%H")
 
 

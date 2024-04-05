@@ -43,20 +43,24 @@ def _create_stationdata(url: str, file: str, target_path: str) -> htmlGrab.Downl
     return htmlGrab.DownloadData(url, file, target_path)
 
 
-def get_dwd_html_links(param_type: str, target_path: str) -> List[htmlGrab.DownloadData]:
+def get_dwd_html_links(param_type: str, target_path: str, custom_url: str = "") -> List[htmlGrab.DownloadData]:
     """
     Hallo Welt
     :param param_type:
     :param target_path:
+    :param custom_url:
     :return:
     """
     # Create target directory if it does not yet exist
-    date_now = datetime.now().strftime('%Y%m%d')
+    date_now = datetime.now().strftime("%Y%m%d")
     target_path = os.path.join(target_path, param_type, date_now)
     if not os.path.exists(target_path):
         os.makedirs(target_path)
 
-    url_html = f"{MAIN_URL_OBSERV_GERMAN}{param_type}{RECENT}"
+    if custom_url == "":
+        url_html = f"{MAIN_URL_OBSERV_GERMAN}{param_type}{RECENT}"
+    else:
+        url_html = custom_url
 
     link_texts = htmlGrab.get_html_links_as_list(url_html)
 
@@ -67,7 +71,7 @@ def get_dwd_html_links(param_type: str, target_path: str) -> List[htmlGrab.Downl
         if link_idx in [0]:
             continue
         # Search for the link containing numbers and "N_"
-        match = re.search(r'\.txt$|\.zip$', link_text)
+        match = re.search(r"\.txt$|\.zip$", link_text)
         if match:
             file = match.string
             url = f"{url_html}{file}"

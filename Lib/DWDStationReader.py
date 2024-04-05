@@ -7,11 +7,12 @@ Description:
 import os
 import zipfile
 import re
+
 import Lib.GeneralFunctions as gFunc
 import pandas as pd
 import numpy as np
 from datetime import datetime
-from typing import Tuple, List
+from typing import List
 from pandas import DataFrame
 from Lib.IOConsts import *
 from tqdm import tqdm
@@ -28,15 +29,15 @@ class DWDStations:
         columns = [COL_STATION_ID, COL_DATE_START, COL_DATE_END, COL_STATION_HEIGHT, COL_LAT, COL_LON,
                    COL_DWD_FILENAME, COL_PARAM, COL_DWD_LOADED]
         datatypes = {
-            COL_STATION_ID: 'int',
-            COL_DATE_START: 'datetime64[ns]',
-            COL_DATE_END: 'datetime64[ns]',
-            COL_STATION_HEIGHT: 'float',
-            COL_LAT: 'float',
-            COL_LON: 'float',
-            COL_DWD_FILENAME: 'str',
+            COL_STATION_ID: "int",
+            COL_DATE_START: "datetime64[s]",
+            COL_DATE_END: "datetime64[s]",
+            COL_STATION_HEIGHT: "float",
+            COL_LAT: "float",
+            COL_LON: "float",
+            COL_DWD_FILENAME: "str",
             COL_PARAM: "str",
-            COL_DWD_LOADED: 'bool',
+            COL_DWD_LOADED: "bool",
         }
         self.df: DataFrame = DataFrame(columns=columns).astype(datatypes)
 
@@ -50,29 +51,31 @@ class DWDStations:
         if len(dwd_txt_files) <= 1:
             raise FileNotFoundError(f"No DWD *.txt Files exist in '{path}'")
         for dwd_txt in tqdm(dwd_txt_files, total=len(dwd_txt_files), desc="Loading DWD-Files"):
-            if INIT_FILE_MARKER not in os.path.basename(dwd_txt):
+            if INIT_FILE_HOURLY_MARKER not in os.path.basename(dwd_txt):
                 self._load_dwd_txt(dwd_txt)
         self.df.sort_values(by=[COL_STATION_ID, COL_PARAM], inplace=True)
 
-    def get_dwd_value(self, date_time: datetime,
-                      lat: float,
-                      lon: float,
-                      use_all_params: bool = True,
-                      params: List[str] = None) -> DataFrame:
-        return self.get_dwd_multiple_values([date_time], lat, lon, use_all_params, params)
+    def get_values(self, date_times: datetime | List[datetime],
+                   lat: float,
+                   lon: float,
+                   use_all_params: bool = True,
+                   params: str | List[str] = None) -> DataFrame:
+        def conv_to_list(data):
+            if not isinstance(data, list):
+                data = [data]
+            return data
 
-    def get_dwd_multiple_values(self, date_times: List[datetime],
-                                lat: float,
-                                lon: float,
-                                use_all_params: bool = True,
-                                params: List[str] = None) -> DataFrame:
+        # perpare data
+        date_times = conv_to_list(date_times)
+        params = conv_to_list(params)
         lat: float = round(lat, 4)
         lon: float = round(lon, 4)
+        # check if lat, lon exist and file is loaded
         if self.df.loc[(self.df[COL_LAT] == lat)
                        & (self.df[COL_LON] == lon)
                        & (self.df[COL_DWD_LOADED] == True)].empty:
             return pd.DataFrame()
-
+        # write all used datetimes
         date_times = pd.DataFrame(date_times, columns=["Datetime"])
         # Init start structure
         result_df: DataFrame = pd.DataFrame()
@@ -99,7 +102,6 @@ class DWDStations:
             height: float = float(row[COL_STATION_HEIGHT].iloc[0])
             if os.path.exists(filename):
                 df_file = read_file_to_df(filename)
-
                 matching_rows = df_file[df_file[COL_DATE].isin(result_df[COL_DATE])].copy()
                 if not matching_rows.empty:
                     matching_rows[param] = matching_rows[param].str.strip()
@@ -111,30 +113,6 @@ class DWDStations:
         result_df.dropna(inplace=True)
         result_df[COL_DATE] = pd.to_datetime(result_df[COL_DATE], format="%Y%m%d%H")
         return result_df
-
-    def get_unloaded_stations(self) -> DataFrame:
-        return self.df.loc[self.df[COL_DWD_LOADED] == False]
-
-    def get_stations(self,
-                     lat_range: Tuple[float, float] = None,
-                     lon_range: Tuple[float, float] = None) -> DataFrame:
-        if lat_range is not None and lon_range is not None:
-            filtered_df = self.df.loc[(self.df[COL_LAT] >= lat_range[0]) & (self.df[COL_LAT] <= lat_range[1])
-                                      & (self.df[COL_LON] >= lon_range[0]) & (self.df[COL_LON] <= lon_range[1])]
-        elif lat_range is not None:
-            filtered_df = self.df.loc[(self.df[COL_LAT] >= lat_range[0]) & (self.df[COL_LAT] <= lat_range[1])]
-        elif lon_range is not None:
-            filtered_df = self.df.loc[(self.df[COL_LAT] >= lon_range[0]) & (self.df[COL_LAT] <= lon_range[1])]
-        else:
-            filtered_df = self.df.copy()
-        return filtered_df
-
-    def get_station(self, lat: float, lon: float) -> DataFrame:
-        return self.df.loc[(self.df[COL_LAT] == lat) & (self.df[COL_LON] == lon)]
-
-    def datetime_in_range(self, date_time: datetime, lat: float, lon: float) -> bool:
-        df = self.get_station(lat, lon)
-        return df[COL_DATE_START].iloc[0] <= date_time <= df[COL_DATE_END].iloc[0]
 
     def get_station_locations(self) -> DataFrame:
         return self.df[[COL_LAT, COL_LON]].drop_duplicates()
@@ -167,9 +145,6 @@ class DWDStations:
             return True
         else:
             return False
-
-    def count(self) -> int:
-        return len(self.df[COL_STATION_ID].drop_duplicates())
 
     def _load_dwd_txt(self, filename: str) -> bool:
         a_id: int = _read_id(filename)
@@ -217,14 +192,16 @@ class DWDStations:
         files: list[str] = gFunc.get_files(path, ".txt")
         init_files: list[str] = []
         for a_file in files:
-            if INIT_FILE_MARKER.lower() in str(a_file).lower():
+            if INIT_FILE_HOURLY_MARKER.lower() in str(a_file).lower():
+                init_files.append(str(os.path.abspath(a_file)))
+            elif INIT_FILE_10_MIN_MARKER.lower() in str(a_file).lower():
                 init_files.append(str(os.path.abspath(a_file)))
         if not init_files:
             raise FileNotFoundError(f"DWD-Stations init file not exist in '{path}'. The file name must contain the "
-                                    f"following: '{INIT_FILE_MARKER}'")
+                                    f"following: '[{INIT_FILE_HOURLY_MARKER}, {INIT_FILE_10_MIN_MARKER}]'")
         # Read the init File -> Content: all Ids of DWD Stations
         for init_file in init_files:
-            with open(init_file, 'r') as content:
+            with open(init_file, "r") as content:
                 # Skip Header line
                 content.readline()
                 # Skip Splitter line
@@ -243,7 +220,10 @@ def _read_min_date(filename: str) -> datetime:
         # Skip Header line
         content.readline()
         first_line: str = content.readline().strip()
-        date: datetime = datetime.strptime(first_line.split(";")[1], "%Y%m%d%H")
+        date_str = first_line.split(";")[1]
+        if len(date_str) > 10:
+            date_str = date_str[:10]
+        date: datetime = datetime.strptime(date_str, "%Y%m%d%H")
         return date
 
 
@@ -261,7 +241,10 @@ def _read_max_date(filename: str) -> datetime:
                 # Check if line contains ";"
                 if ';' in line:
                     # reverse the reversed string
-                    date: datetime = datetime.strptime(line[::-1].split(";")[1], "%Y%m%d%H")
+                    date_str = line[::-1].split(";")[1]
+                    if len(date_str) > 10:
+                        date_str = date_str[:10]
+                    date: datetime = datetime.strptime(date_str, "%Y%m%d%H")
                     return date
                 # reset temp var
                 line = ''
@@ -300,19 +283,6 @@ def extract_dwd_archives(path: str):
                         break
 
 
-def _read_id(filename: str) -> int:
-    if not os.path.exists(filename):
-        return -1
-    # Read the Textfile and get station id
-    with open(filename, 'r') as content:
-        content.readline()
-        second_line = content.readline().strip()
-        # check if second line exist
-        if not second_line:
-            return -1
-        return gFunc.int_def(second_line.split(";")[0], -1)
-
-
 def _read_params(filename: str) -> List[str]:
     if not os.path.exists(filename):
         return []
@@ -325,6 +295,19 @@ def _read_params(filename: str) -> List[str]:
         # 1. STATIONS_ID, 2. MESS_DATUM, 3. QN_*
         # export 4. until n-1 column
         return [name.strip() for name in headers[3:-1]]
+
+
+def _read_id(filename: str) -> int:
+    if not os.path.exists(filename):
+        return -1
+    # Read the Textfile and get station id
+    with open(filename, 'r') as content:
+        content.readline()
+        second_line = content.readline().strip()
+        # check if second line exist
+        if not second_line:
+            return -1
+        return gFunc.int_def(second_line.split(";")[0], -1)
 
 # TODO: automatische Tets schreiben
 # dwdv2 = DWDStations()

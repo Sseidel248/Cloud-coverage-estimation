@@ -4,10 +4,12 @@ Author:         Sebastian Seidel
 Date:           2024.**.**
 """
 import os
+import pickle
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
+import numpy
 import numpy as np
 import pandas as pd
 import statsmodels.api as sm
@@ -20,6 +22,7 @@ from pandas import DataFrame
 from Lib.IOConsts import *
 from matplotlib.colors import LinearSegmentedColormap
 from scipy.spatial.distance import cdist
+from pathlib import Path
 
 
 def _set_fonts(scale: float = 1):
@@ -80,13 +83,6 @@ def _make_subplot_cloud_coverage(ax: Axes,
                alpha=1,
                transform=ccrs.PlateCarree())
     return sc
-
-
-def _print_as_table(data: list[str]):
-    width = 15
-    for row in data:
-        line = "|".join(["{:<{}}".format(elem, width) for elem in row])
-        print(line)
 
 
 def _show_as_table(title: str,
@@ -158,6 +154,7 @@ def make_hist(df: DataFrame,
               show: bool = True,
               exportname: str = "",
               min_value: float = 0,
+              max_y_lim: int = -1,
               color_value_above: float = 0):
     _set_fonts()
     arr = df.hist(bins=num_bins, color="skyblue", edgecolor="black", range=[min_value, df.max()])
@@ -174,6 +171,8 @@ def make_hist(df: DataFrame,
         custom_patch_2 = plt.Rectangle((0, 0), 1, 1, fc="orange", edgecolor="black",
                                        label=f"≥ {color_value_above} %")
         plt.legend(handles=[custom_patch_1, custom_patch_2])
+    if max_y_lim > 0:
+        plt.ylim(top=max_y_lim)
     _show_and_export(plt, show, exportname)
 
 
@@ -221,18 +220,49 @@ def show_me_mae_rmse(df: DataFrame, col_model: str, col_dwd: str):
     print(f"Mittlere quad. Fehler (RMSE): {me_mae_rmse[2]:.2f}% Bedeckungsgrad")
 
 
-def show_error_metrics(df: DataFrame, model: str, show: bool = True):
+def make_compare_proportion_lineplt(df1: DataFrame,
+                                    df2: DataFrame,
+                                    show: bool = True,
+                                    exportname: str = ""):
+    def calc_protortion(df: DataFrame, value: int) -> float:
+        return len(da.filter_dataframe_by_value(df, COL_ABS_ERROR, value, False)) / len(df) * 100
+
+    line1 = []
+    line2 = []
+    x = numpy.arange(0, 101, 12.5)
+    for i in x:
+        line1.append(calc_protortion(df1, i))
+        line2.append(calc_protortion(df2, i))
+    _set_fonts()
+    plt.plot(x, line1, label="ICON-D2", marker="x")
+    plt.plot(x, line2, label="ICON-EU", marker="x")
+    plt.legend()
+    plt.grid()
+    plt.title("Prozentualer Anteil der Daten basierend "
+              "\nauf dem absoluten Fehler des Bewölkungsgrads der DWD-Stationen",
+              fontweight="bold")
+    plt.xlabel("Absoluter Fehler [%]")
+    plt.xticks([0, 12.5, 25, 37.5, 50, 62.5, 75, 87.5, 100],
+               ["0/8", "1/8", "2/8", "3/8", "4/8", "5/8", "6/8", "7/8", "8/8"])
+    plt.ylabel("Differenz zu den Bewölkungsgraden des DWD")
+    _show_and_export(plt, show, exportname)
+
+
+def show_error_metrics(df: DataFrame, model: str, show: bool = True, max_y_lim: int = -1):
     stations_info = da.get_mean_abs_error_each_station(df)
     print(f"\n~~~{model}~~~\n")
     show_me_mae_rmse(df, "TCDC", "V_N")
     print(f"{len(da.filter_dataframe_by_value(df, COL_ABS_ERROR, 5, False)) / len(df) * 100:.2f}% "
           f"der Daten haben einen absoluten Fehler von < 5% Bedeckungsgrad.")
     print(f"{len(da.filter_dataframe_by_value(df, COL_ABS_ERROR, 12.5, False)) / len(df) * 100:.2f}% "
-          f"der Daten haben einen absoluten Fehler von < 12,5% Bedeckungsgrad.")
+          f"der Daten haben einen absoluten Fehler von < 12,5% Bedeckungsgrad (1/8).")
     print(f"{len(da.filter_dataframe_by_value(df, COL_ABS_ERROR, 25, False)) / len(df) * 100:.2f}% "
-          f"der Daten haben einen absoluten Fehler von < 25% Bedeckungsgrad.")
+          f"der Daten haben einen absoluten Fehler von < 25% Bedeckungsgrad (2/8).")
+    print(f"{len(da.filter_dataframe_by_value(df, COL_ABS_ERROR, 50, False)) / len(df) * 100:.2f}% "
+          f"der Daten haben einen absoluten Fehler von < 50% Bedeckungsgrad (4/8).")
     print(f"{len(da.filter_dataframe_by_value(df, COL_ABS_ERROR, 75)) / len(df) * 100:.2f}% "
-          f"der Daten haben einen absoluten Fehler von > 75% Bedeckungsgrad.")
+          f"der Daten haben einen absoluten Fehler von > 75% Bedeckungsgrad (6/8).")
+
     make_hist(stations_info[COL_MEAN_ABS_ERROR],
               f"Verteilung des MAE von {model} zu den DWD-Stationen\n(Anzahl DWD-Stationen: {len(stations_info)})",
               f"Anzahl DWD-Stationen",
@@ -240,15 +270,15 @@ def show_error_metrics(df: DataFrame, model: str, show: bool = True):
               30,
               show,
               f".\\plots\\HistPlt_Verteilung_MAE_{model}_DWD_Stationen.svg",
-              0,
-              12.5)
+              color_value_above=12.5)
     make_hist(df[COL_ABS_ERROR],
               f"Verteilung des absoluten Fehlers von {model} zu den DWD-Stationen\n(Anzahl Daten: {len(df)})",
               f"Anzahl berechnete Modelldaten",
               f"Absoluter Fehler vom Bedeckungsgrad [%]",
               40,
               show,
-              f".\\plots\\HistPlt_MAE_{model}_DWD_Stationen.svg")
+              f".\\plots\\HistPlt_MAE_{model}_DWD_Stationen.svg",
+              max_y_lim=max_y_lim)
 
 
 def compare_fcst_error(df: DataFrame,
@@ -266,7 +296,7 @@ def compare_fcst_error(df: DataFrame,
     plt.violinplot(combined_df.values, showmedians=True)
     plt.title(f"Verteilung des MAE nach Prognosezeiten vom {model}", fontweight="bold")
     plt.ylabel("MAE Bedeckungsgrad [%]")
-    plt.xlabel("Prognosezeit")
+    plt.xlabel("Prognose")
     plt.xticks(ticks=range(1, len(combined_df.columns) + 1), labels=combined_df.columns)
     plt.grid(alpha=0.75)
     _show_median_on_violin(combined_df, plt)
@@ -329,6 +359,52 @@ def make_scatterplot_dwd_locations(df: DataFrame,
     _show_and_export(plt, show, exportname)
 
 
+def make_scatterplot_dwd_locs_compare(df1: DataFrame,
+                                      df2: DataFrame,
+                                      show: bool = True,
+                                      exportname: str = "",
+                                      legend_df1: str = "",
+                                      legend_df2: str = "",
+                                      custom_title: str = ""):
+    # Grouped data
+    df_data1 = df1.groupby(COL_STATION_ID).agg({
+        COL_LAT: "first",
+        COL_LON: "first"
+    }).reset_index()
+    df_data2 = df2.groupby(COL_STATION_ID).agg({
+        COL_LAT: "first",
+        COL_LON: "first"
+    }).reset_index()
+
+    fig = plt.figure()
+    _set_fonts()
+    ax = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
+    ax.set_extent([df_data1[COL_LON].min() - 1, df_data1[COL_LON].max() + 1,
+                   df_data1[COL_LAT].min() - 1, df_data1[COL_LAT].max() + 1],
+                  crs=ccrs.PlateCarree())
+    _add_geographic(ax)
+    sc1 = ax.scatter(df_data1[COL_LON], df_data1[COL_LAT],
+                     s=35,
+                     alpha=0.8,
+                     edgecolor="black",
+                     transform=ccrs.PlateCarree())
+    sc2 = ax.scatter(df_data2[COL_LON], df_data2[COL_LAT],
+                     s=30,
+                     alpha=0.80,
+                     color="red",
+                     marker="x",
+                     transform=ccrs.PlateCarree())
+    plt.title("Geografische Verteilung der DWD-Stationen",
+              fontweight="bold")
+    if custom_title != "":
+        plt.title(custom_title, fontweight="bold")
+    sc1.set_label(legend_df1)
+    sc2.set_label(legend_df2)
+    ax.legend()
+    plt.tight_layout()
+    _show_and_export(plt, show, exportname)
+
+
 def make_scatterplots_cloud_coverage(model_data_icon_d2_area_1: str,
                                      model_data_icon_eu_area_1: str,
                                      dwd_data_area_1: str,
@@ -371,28 +447,6 @@ def make_scatterplots_cloud_coverage(model_data_icon_d2_area_1: str,
     _show_and_export(plt, show, exportname)
     _show_as_table("Area 1", dwd_locs_area_1, data_icon_d2_area_1, data_icon_eu_area_1)
     _show_as_table("Area 2", dwd_locs_area_2, data_icon_d2_area_2, data_icon_eu_area_2)
-
-
-def make_scatterplot(coords: list[tuple[float, float]],
-                     title: str,
-                     show: bool = True,
-                     exportname: str = ""):
-    lats, lons = zip(*coords)
-    fig, ax = plt.subplots(subplot_kw={"projection": ccrs.PlateCarree()})
-    ax.set_extent([min(lons) - 0.1, max(lons) + 0.1,
-                   min(lats) - 0.1, max(lats) + 0.1],
-                  crs=ccrs.PlateCarree())
-    ax.add_feature(cfeature.COASTLINE)
-    ax.add_feature(cfeature.BORDERS, linestyle=":")
-    ax.add_feature(cfeature.OCEAN)
-    ax.add_feature(cfeature.LAKES, alpha=0.5)
-    ax.add_feature(cfeature.RIVERS)
-    gl = ax.gridlines(draw_labels=True, linewidth=1, color="gray", alpha=0.5, linestyle="--")
-    gl.top_labels = False
-    gl.right_labels = False
-    ax.scatter(lons, lats, color="red", marker="o", s=50, alpha=0.5, transform=ccrs.PlateCarree())
-    ax.set_title(title, fontweight="bold")
-    _show_and_export(plt, show, exportname)
 
 
 def show_used_areas_dwd_stations(df_data: DataFrame,
@@ -442,8 +496,14 @@ def calc_dwd_outliers(df: DataFrame) -> DataFrame:
 def load(filename: str) -> DataFrame:
     if not os.path.exists(filename):
         raise FileExistsError
-    df = pd.read_csv(filename, sep=";", decimal=",")
-    return df
+    filepath = Path(filename)
+    if filepath.suffix == ".csv":
+        return pd.read_csv(filename, sep=";", decimal=",")
+    elif filepath.suffix == ".pkl":
+        with open(filename, 'rb') as file:
+            return pickle.load(file)
+    else:
+        raise ValueError("Unsupported file extension. Only *.cvs and *.pkl are supported.")
 
 
 # Initialisation
@@ -457,15 +517,26 @@ df_d2_full = load(f".\\datas\\all_param_data_ICON_D2.csv")
 df_d2_cloud_only = _drop_param(df_d2_full, ["D", "F", "RF_TU", "TT_TU", "P", "P0"])
 df_eu_full = load(f".\\datas\\all_param_data_ICON_EU.csv")
 df_eu_cloud_only = _drop_param(df_eu_full, ["D", "F", "RF_TU", "TT_TU", "P", "P0"])
+df_dwd_solar = load(f".\\datas\\solar_DWD_Stationlocations.csv")
 
 # Show all used DWD-Locations
 make_scatterplot_dwd_locations(df_d2_cloud_only, show_plot, f".\\plots\\ScatPlt_Verwendete_DWD-Stationen.svg")
+make_scatterplot_dwd_locs_compare(df_d2_cloud_only, df_dwd_solar, show_plot,
+                                  f".\\plots\\ScatPlt_Bedeckungsgrad_Sonnenscheindauer.svg",
+                                  "DWD Bedeckungsgrad",
+                                  "DWD Sonnenscheindauer",
+                                  "Geografische Verteilung der DWD-Stationen zum"
+                                  "\nMessen des Bedeckungsgrades und der Sonnenscheindauer")
 
 # Calculate Errors (RMSE, MAE, ME) and show it as text and as diagramm
 da.calc_abs_error(df_d2_cloud_only, "TCDC", "V_N")
 da.calc_abs_error(df_eu_cloud_only, "TCDC", "V_N")
-show_error_metrics(df_d2_cloud_only, MODEL_ICON_D2, show_plot)
-show_error_metrics(df_eu_cloud_only, MODEL_ICON_EU, show_plot)
+show_error_metrics(df_d2_cloud_only, MODEL_ICON_D2, show_plot, 30000)
+show_error_metrics(df_eu_cloud_only, MODEL_ICON_EU, show_plot, 30000)
+make_compare_proportion_lineplt(df_d2_cloud_only,
+                                df_eu_cloud_only,
+                                show_plot,
+                                f".\\plots\\LinPlt_Differenz_Modell_DWD.svg")
 
 # Show Errors between Forecasts
 compare_fcst_error(df_d2_cloud_only, MODEL_ICON_D2, show_plot,
@@ -546,7 +617,7 @@ for dwd_param in dwd_params:
               30,
               show_plot,
               f".\\plots\\HistPlt_Verteilung_DWD_Param_{dwd_param}.svg",
-              param_details.min())
+              min_value=param_details.min())
     make_qq_plot(param_details,
                  f"QQ-Plot vom Parameter: {dwd_param}",
                  show_plot,

@@ -1,16 +1,13 @@
 # Regex Patters for wgrib2.exe out put string
-# PATTERN: str = (r"1:0:d=(\d{10}):(\w+):\w+:(?:(\d+) min fcst|(anl))::.+\s+.+\s+lat (\d+\.\d+) to (\d+\.\d+) by "
-#                 r"(\d+\.\d+)\s+lon (\d+\.\d+) to (\d+\.\d+).+")
 PATTERN: str = (r"1:0:d=(\d{10}):(\w+):\w+.+\s+.+\s+lat (\d+\.\d+) to (\d+\.\d+) by (\d+\.\d+)\s+lon (\d+\.\d+) to"
                 r" (\d+\.\d+).+")
-# PATTERN: str = (r"1:0:d=(\d{10}):(\w+):.+:(?:(\d+) min fcst|(.*):|(anl))::.+\s+.+\s+lat (\d+\.\d+) to (\d+\.\d+) by "
-#                 r"(\d+\.\d+)\s+lon (\d+\.\d+) to (\d+\.\d+).+")
 
 LAT_LON: str = "lat-lon"
 CLOUD_COVER: str = "TCDC"
 
 # identifier
-INIT_FILE_MARKER: str = "Stundenwerte_Beschreibung"
+INIT_FILE_HOURLY_MARKER: str = "Stundenwerte_Beschreibung"
+INIT_FILE_10_MIN_MARKER: str = "zehn_min_sd_Beschreibung"
 DATA_FILE_MARKER: str = "produkt_"
 
 # Export/Import filenames
@@ -32,7 +29,6 @@ COL_MODEL_LATLON_DELTA: str = "LatLon_Delta"
 COL_MODEL_FILENAME: str = "GRIB2_Filename"
 COL_LAT: str = "Lat"
 COL_LON: str = "Lon"
-# COL_MODEL_VALUE: str = "Model_Value"
 
 # Columnnames for Station initialization
 COL_STATION_ID: str = "Station_ID"

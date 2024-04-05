@@ -36,13 +36,13 @@ def show_number_of_files(count):
 # Switch on/off whether the weather station data should be downloaded
 download_measuring_station = True
 
-# Download Icon-d2 data
+# Download ICON-d2 data
 show_start_message("ICON-D2 CLCT Data")
 download_urls_d2 = get_dwd_model_data_links(ICON_D2, ".\\WeatherData")
 download_data(download_urls_d2)
 show_number_of_files(len(download_urls_d2))
 
-# Icon-eu Daten downloaden
+# Download ICON-EU data
 show_start_message("ICON-EU CLCT Data")
 download_urls_eu = get_dwd_model_data_links(ICON_EU, ".\\WeatherData")
 download_data(download_urls_eu)
@@ -70,3 +70,10 @@ if download_measuring_station:
     download_data(download_urls_stations_cloud_type)
     show_number_of_files(len(download_urls_stations_cloud_type))
 
+    show_start_message("solar (Measuring stations)")
+    download_urls_stations_cloud_type = get_dwd_html_links("solar/",
+                                                           "WeatherStations/",
+                                                           "https://opendata.dwd.de/climate_environment/CDC"
+                                                           "/observations_germany/climate/10_minutes/solar/recent/")
+    download_data(download_urls_stations_cloud_type)
+    show_number_of_files(len(download_urls_stations_cloud_type))

@@ -4,7 +4,7 @@ Author:         Sebastian Seidel
 Date:           2024.**.**
 """
 import os
-
+import pickle
 import numpy as np
 import pandas as pd
 from Lib.IOConsts import *
@@ -13,6 +13,7 @@ from Lib.DWDStationReader import DWDStations
 from pandas import DataFrame, Series
 from tqdm import tqdm
 from datetime import datetime
+from pathlib import Path
 
 
 def is_file_in_use(filepath: str) -> bool:
@@ -47,15 +48,6 @@ def get_unique_filename(filename: str) -> str:
     return filename
 
 
-def get_usefull_stations(df_dwd: DataFrame, model_datetimes: Series) -> DataFrame:
-    filtered_df: DataFrame = DataFrame()
-    for date in model_datetimes:
-        temp_df: DataFrame = df_dwd[(df_dwd[COL_DATE_START] <= date) & (df_dwd[COL_DATE_END] >= date)]
-        filtered_df = pd.concat([filtered_df, temp_df])
-    filtered_df = filtered_df.drop_duplicates()
-    return filtered_df.reset_index()
-
-
 def combine_datas(dwd_datas: DWDStations,
                   model_datas: Grib2Datas,
                   model_str: str,
@@ -72,7 +64,7 @@ def combine_datas(dwd_datas: DWDStations,
     coords_list = []
     for row in tqdm(coords.itertuples(index=False), total=len(coords), desc="Processing DWD-Values"):
         lat, lon = row.Lat, row.Lon
-        temp_df = dwd_datas.get_dwd_multiple_values(model_dates, lat, lon, use_all_params, dwd_param_list)
+        temp_df = dwd_datas.get_values(model_dates, lat, lon, use_all_params, dwd_param_list)
         temp_dfs.append(temp_df)
         coords_list.append((lat, lon))
     vals_dwd = pd.concat(temp_dfs, ignore_index=True)
@@ -116,23 +108,6 @@ def calculate_idw(model_datas: Grib2Datas,
     idw_df.sort_values(by=[COL_DATE, COL_LAT, COL_LON], inplace=True)
     result_df = pd.merge(data_df, idw_df, on=[COL_DATE, COL_LAT, COL_LON], how="left")
     return result_df
-
-
-def add_to_csv(filename: str, dwd_datas: DWDStations, dwd_params: list[str]):
-    df = pd.read_csv(filename, sep=';', parse_dates=[COL_DATE])
-    df[COL_LAT] = df[COL_LAT].astype(float)
-    df[COL_LON] = df[COL_LON].astype(float)
-    coords = [(lat, lon) for lat, lon in zip(df[COL_LAT], df[COL_LON])]
-    dates = [date for date in df[COL_DATE]]
-
-    temp_dfs = []
-    for lat, lon in tqdm(coords, total=len(coords), desc="Processing DWD-Values for adding"):
-        temp_df = dwd_datas.get_dwd_multiple_values(dates, lat, lon, False, dwd_params)
-        temp_dfs.append(temp_df)
-    vals_dwd = pd.concat(temp_dfs, ignore_index=True)
-    # change typing for better compare
-    vals_dwd.to_csv(filename, sep=";", decimal=",", index=False)
-    print(f"Export - Finished, Location:'{os.path.abspath(filename)}'")
 
 
 def export_to_csv(df: DataFrame, filename: str):
@@ -229,8 +204,7 @@ def export_cloud_area_csv(dwd_datas: DWDStations,
     for idx, row in dwd_area.iterrows():
         lat = row[COL_LAT]
         lon = row[COL_LON]
-        tmp = dwd_datas.get_dwd_value(calc_date, lat, lon,
-                                      False, ["V_N"])
+        tmp = dwd_datas.get_values(calc_date, lat, lon, False, "V_N")
         # override nan Value if cloud coverage value exist
         if "V_N" in tmp.columns:
             dwd_area.loc[idx, "V_N"] = float(tmp["V_N"].iloc[0])
@@ -245,6 +219,15 @@ def export_cloud_area_csv(dwd_datas: DWDStations,
                                      calc_date,
                                      view_area)
     export_to_csv(temp_df, exportname_model)
+
+
+def load_pkl(filename: str) -> DataFrame:
+    filepath = Path(filename)
+    if filepath.suffix == ".pkl":
+        with open(filename, "rb") as file:
+            return pickle.load(file)
+    else:
+        raise ValueError("Unsupported file extension. Only *.pkl are supported.")
 
 
 model: str = MODEL_ICON_D2
@@ -269,6 +252,15 @@ grib2_datas.load_folder(grib2_path)
 # init dwd txt files
 dwds = DWDStations()
 dwds.load_folder(dwd_path)
+dwd_solar = DWDStations()
+
+# Export Solar-Stationlocations with filterfile
+dwd_solar.load_folder(os.path.join(dwd_path, "solar"))
+export_solar_dwd = dwd_solar.df[[COL_STATION_ID, COL_LAT, COL_LON]].drop_duplicates(COL_STATION_ID)
+useful_solar_station = load_pkl(f".\\datas\\radiationStations.pkl")
+filter_mask = export_solar_dwd[COL_STATION_ID].isin(useful_solar_station.iloc[:, 0])
+export_solar_dwd = export_solar_dwd[filter_mask]
+export_to_csv(export_solar_dwd, f".\\datas\\solar_DWD_Stationlocations.csv")
 
 # combine dwd and grib2 datas
 dwd_params = ["V_N", "V_N_I"]
