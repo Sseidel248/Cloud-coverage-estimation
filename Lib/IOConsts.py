@@ -1,3 +1,15 @@
+"""
+General Information:
+______
+- File name:      IOConst.py
+- Author:         Sebastian Seidel
+- Date:           2024-04-10
+
+Description:
+______
+Contains all used Constants.
+"""
+
 # Regex Patters for wgrib2.exe out put string
 PATTERN: str = (r"1:0:d=(\d{10}):(\w+):\w+.+\s+.+\s+lat (\d+\.\d+) to (\d+\.\d+) by (\d+\.\d+)\s+lon (\d+\.\d+) to"
                 r" (\d+\.\d+).+")

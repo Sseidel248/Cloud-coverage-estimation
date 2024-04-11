@@ -1,8 +1,13 @@
 """
-File name:      DWDStationReader.py
-Author:         Sebastian Seidel
-Date:           2024-**-**
+General Information:
+______
+- File name:      DWDStationReader.py
+- Author:         Sebastian Seidel
+- Date:           2024-04-10
+
 Description:
+______
+
 """
 import os
 import zipfile
@@ -20,11 +25,27 @@ from colorama import Fore, Style
 
 
 class CorruptedInitFileError(Exception):
+    """
+    A custom exception to indicate that an initialization file is corrupted. This exception is raised when
+    the initialization process encounters data that it cannot process due to errors in the file's format
+    or content.
+    """
     def __init__(self, message):
         super().__init__(message)
 
 
 class DWDStations:
+    """
+    This class is used to read the txt files of the DWD stations.
+    The TXT files were downloaded from the DWD FTP server. The following contents are read from the station files:
+    All existing parameters, latitude, longitude, station altitude, station ID and time range (of the data recording)
+
+    Attributes:
+        df (DataFrame): contains all found and loaded txt files
+
+    Functions:
+        `get_values(...)`: is used to read out the parameter values for a specific latitude and longitude
+    """
     def __init__(self):
         columns = [COL_STATION_ID, COL_DATE_START, COL_DATE_END, COL_STATION_HEIGHT, COL_LAT, COL_LON,
                    COL_DWD_FILENAME, COL_PARAM, COL_DWD_LOADED]
@@ -42,6 +63,27 @@ class DWDStations:
         self.df: DataFrame = DataFrame(columns=columns).astype(datatypes)
 
     def load_folder(self, path: str):
+        """
+        Loads all DWD station data from text files located in a specified directory. This method performs several
+        operations: it checks the existence of the directory, reads initialization files, extracts archives, and
+        loads data from .txt files not marked as initialization files.
+
+        :param path: A string representing the directory path from which to load the data.
+
+        :raises FileNotFoundError: If the specified directory does not exist or contains no relevant .txt files.
+
+        Note:
+        The method assumes the presence of an 'init' file that must not be loaded with the regular station data.
+        Each valid text file is processed to extract data, which is then sorted by station ID and parameter name.
+        Progress through the files is visually tracked using a progress bar (tqdm), enhancing usability during large
+        data loads.
+
+        Example usage:
+
+        `dwd_stations = DWDStations()`
+
+        `dwd_stations.load_folder("/path/to/dwd/data")`
+        """
         if not os.path.exists(path):
             raise FileNotFoundError(f"Folder: '{path}' not exist.")
         self._read_init_files(path)
@@ -60,6 +102,30 @@ class DWDStations:
                    lon: float,
                    use_all_params: bool = True,
                    params: str | List[str] = None) -> DataFrame:
+        """
+         Retrieves weather data for specified date and time, latitude, and longitude, optionally filtered by
+         weather parameters. If no specific parameters are defined, data for all available parameters can be
+         retrieved based on the 'use_all_params' flag.
+
+         :param date_times: A single datetime or a list of datetimes for which data is requested.
+         :param lat: The latitude of the location.
+         :param lon: The longitude of the location.
+         :param use_all_params: Boolean flag to indicate whether data should be retrieved for all available parameters.
+                                Defaults to True. If False, only specified 'params' are used.
+         :param params: Optional single parameter or list of parameters to filter the data. If None and
+                        'use_all_params' is False, no data is returned.
+
+         :return: A pandas DataFrame containing the requested weather data, with each parameter as a column,
+                  or an empty DataFrame if no data is available for the specified location or parameters.
+
+         :raises FileNotFoundError: If data files for the specified parameters are not found.
+
+         Note:
+         This method first checks for the existence of the station at the given coordinates. It then prepares a
+         DataFrame to collect results for the requested times and parameters. Data is loaded from corresponding
+         files and merged into the result DataFrame. The method handles missing data gracefully, filling missing
+         values where possible, and strips whitespace from parameter names to ensure accurate matching.
+         """
         def conv_to_list(data):
             if not isinstance(data, list):
                 data = [data]
@@ -115,9 +181,40 @@ class DWDStations:
         return result_df
 
     def get_station_locations(self) -> DataFrame:
+        """
+        Retrieves unique latitude and longitude coordinates for DWD (German Weather Service) stations from
+        the class's DataFrame.
+
+        :return: A pandas DataFrame containing columns for latitude (COL_LAT) and longitude (COL_LON) with
+        each row representing a unique station location.
+
+        Note:
+        This method is particularly useful for plotting station locations on maps or for performing geospatial
+        analyses that require knowledge of the geographical distribution of the stations. The returned DataFrame
+        is filtered to ensure that each location is listed only once.
+        """
         return self.df[[COL_LAT, COL_LON]].drop_duplicates()
 
     def _add_entry(self, datastr: str) -> bool:
+        """
+        Parses a data string to extract station information and either updates existing records or adds a new entry
+        to the DataFrame. The data string is expected to contain station ID, start date, end date, station height,
+        latitude, longitude, and additional information in a specified format.
+
+        :param datastr: A string containing delimited data about a weather station.
+
+        :return: A boolean indicating whether a new entry was added to the DataFrame. Returns True if a new entry
+        is added, and False if an existing entry is updated.
+
+        :raises ValueError: If the data string does not match the expected format, which could indicate a problem
+                            with input data.
+
+        Note:
+        The function uses regular expressions to parse the data string. It checks for the station's presence in the
+        DataFrame using the station ID. If the station exists, it updates the start and end dates if the new dates
+        extend the current recording period. If the station does not exist, it adds a new row with the station's data.
+        The method assumes the date format is 'YYYYMMDD' for both start and end dates.
+        """
         match = re.search(r"(\d+) (\d+) (\d+)\s+(-?\d+)\s+([\d.]+)\s+([\d.]+)\s+(.*)", datastr)
         if match:
             station_id: int = int(match.group(1))
@@ -147,6 +244,27 @@ class DWDStations:
             return False
 
     def _load_dwd_txt(self, filename: str) -> bool:
+        """
+         Loads data from a DWD station text file specified by the filename into the DataFrame. This method reads
+         station IDs and parameters from the file, checks if these exist in the DataFrame, and then updates or
+         appends the data accordingly.
+
+         :param filename: The path to the DWD station text file to be loaded.
+
+         :return: A boolean indicating whether the file was successfully processed. Returns True if data from the file
+                  was successfully added or updated in the DataFrame, and False if the station ID does not exist or no
+                  parameters were read from the file.
+
+         :raises FileNotFoundError: If the file does not exist or cannot be opened.
+         :raises ValueError: If the file content does not match the expected format.
+
+         Note:
+         This method first reads the station ID and parameters from the file. It then checks if the station ID exists
+         in the DataFrame. If it does, the method either updates the existing entry with new parameters and dates or
+         adds new rows for additional parameters not previously recorded. If the station ID does not exist, it outputs
+         a warning and returns False. This method ensures that all parameters and date ranges for each station are
+         up-to-date according to the latest files processed.
+         """
         a_id: int = _read_id(filename)
         params = _read_params(filename)
         if not params:
@@ -189,6 +307,24 @@ class DWDStations:
         return True
 
     def _read_init_files(self, path: str):
+        """
+        Reads initialization files containing station data from a specified directory. This method filters files that
+        match defined markers indicating they are initialization files and then reads these files to populate the
+        DataFrame with station data.
+
+        :param path: The directory path that contains the initialization files.
+
+        :raises FileNotFoundError: If no initialization files are found in the specified directory, or if the files do
+                                  not contain the expected markers in their filenames.
+        :raises CorruptedInitFileError: If the initialization files are found but contain no valid station data.
+
+        Note:
+        The function looks for files containing specific markers, 'INIT_FILE_HOURLY_MARKER' or 'INIT_FILE_10_MIN_MARKER'
+        ,in their names to identify relevant initialization files. It reads through these files, ignoring headers, and
+        processes each line to extract and add station data to the DataFrame using the `_add_entry` method. If after
+        processing all files, the DataFrame remains empty, it indicates that the files were corrupted or improperly
+        formatted.
+        """
         files: list[str] = gFunc.get_files(path, ".txt")
         init_files: list[str] = []
         for a_file in files:
@@ -216,6 +352,22 @@ class DWDStations:
 
 
 def _read_min_date(filename: str) -> datetime:
+    """
+    Reads the earliest date from a specified file. The function assumes the date is located on the second line
+    of the file and is formatted in a specific way within that line.
+
+    :param filename: The path to the file from which to read the date.
+
+    :return: A datetime object representing the earliest date found in the file.
+
+    :raises ValueError: If the date in the file does not conform to the expected format.
+    :raises FileNotFoundError: If the file cannot be found or read.
+
+    Note:
+    This function is designed to read standard formatted DWD data files where the first line after the header
+    contains date information. The date is expected to be in the format 'YYYYMMDDHH', and this function will
+    handle date strings that may contain additional characters by truncating to the first 10 characters.
+    """
     with open(filename, 'r') as content:
         # Skip Header line
         content.readline()
@@ -228,6 +380,25 @@ def _read_min_date(filename: str) -> datetime:
 
 
 def _read_max_date(filename: str) -> datetime:
+    """
+    Reads the latest date from a specified file by searching backwards from the end of the file. It looks for the last
+    line containing a date and returns it. This method is useful for files where new data is appended, ensuring the
+    latest entry is found efficiently.
+
+    :param filename: The path to the file from which to extract the latest date.
+
+    :return: A datetime object representing the latest date found in the file. If no valid date is found,
+             returns January 1, 1970, as a default value.
+
+    :raises ValueError: If the last date in the file does not conform to the expected format.
+    :raises FileNotFoundError: If the file cannot be found or read.
+
+    Note:
+    This function operates by reading the file from the end to the beginning, looking for the first occurrence
+    of a newline character followed by a semicolon, indicating the presence of a date in 'YYYYMMDDHH' format.
+    This method ensures efficient processing, particularly useful for large files. If no date is found, or if
+    the date is improperly formatted, a default date is returned to avoid errors in the calling function.
+    """
     with open(filename, 'rb') as content:
         # Go to the last byte of the file
         content.seek(0, os.SEEK_END)
@@ -255,6 +426,24 @@ def _read_max_date(filename: str) -> datetime:
 
 
 def read_file_to_df(filename: str) -> DataFrame:
+    """
+    Reads a CSV file into a pandas DataFrame, cleans up the column headers by stripping any leading or trailing spaces,
+    and sets appropriate column names for further processing.
+
+    :param filename: The path to the CSV file to be read. The file is expected to be delimited by semicolons (';').
+
+    :return: A pandas DataFrame containing the data from the CSV file with formatted column headers and initial
+             data processing done for dates and station IDs.
+
+    :raises FileNotFoundError: If the file specified does not exist.
+    :raises pd.errors.ParserError: If there is an issue with CSV syntax during parsing.
+
+    Note:
+    The first row of the CSV file is expected to contain the headers, which are cleaned and used as DataFrame column
+    names. Specific columns like 'MESS_DATUM' for date and 'STATIONS_ID' for station identifiers are renamed for
+    consistency with further data handling conventions. Additionally, this function initially prepares to parse date
+    columns, though the actual parsing may be commented out or handled later depending on data structure or needs.
+    """
     df = pd.read_csv(filename, sep=';', header=None)
     # remove empty spaces in headers
     header = df.iloc[0].apply(lambda x: x.strip())
@@ -267,6 +456,23 @@ def read_file_to_df(filename: str) -> DataFrame:
 
 
 def extract_dwd_archives(path: str):
+    """
+    Extracts specific data files from all ZIP archives found in a given directory. This function targets files that
+    contain a designated marker in their names, indicating they are relevant DWD data files.
+
+    :param path: The directory path where the ZIP files are located. The function searches for all ZIP files in this
+                 directory and processes each one found.
+
+    :raises FileNotFoundError: If the path specified does not contain any ZIP files.
+    :raises zipfile.BadZipFile: If an archive cannot be opened because it is not a ZIP file or is corrupted.
+
+    Note:
+    The function iterates over all ZIP files in the specified directory, opening each one to check for data files
+    marked as relevant (identified by `DATA_FILE_MARKER`). It extracts these files into the same directory as the
+    ZIP file if they do not already exist there. This method helps manage data extracted from multiple sources by
+    ensuring that only necessary files are unpacked, thus optimizing storage and processing time. The extraction
+    process is tracked with a progress bar for better visibility and management of the operation.
+    """
     # Collect all zip-files (dwd data-files)
     zip_files: list[str] = gFunc.get_files(path, ".zip")
     for zip_file in tqdm(zip_files, total=len(zip_files), desc="Extract DWD-Files"):
@@ -284,6 +490,24 @@ def extract_dwd_archives(path: str):
 
 
 def _read_params(filename: str) -> List[str]:
+    """
+    Reads the header of a text file to extract parameter names. This function assumes the parameter names are
+    located starting from the fourth column to the second last column in the header of the file.
+
+    :param filename: The path to the file from which to read parameter names.
+
+    :return: A list of strings where each string is a parameter name extracted from the file header. Returns an
+             empty list if the file does not exist or the header is improperly formatted.
+
+    :raises FileNotFoundError: If the file specified does not exist.
+
+    Note:
+    The function first checks if the file exists. If it does, it opens the file and reads the first line to
+    parse out parameter names. The expected format is a semicolon-separated line where the first three columns
+    are typically reserved for station ID, measurement date, and quality number, and the following columns up
+    to the second last are parameter names. This setup is typical in data files used for meteorological or
+    environmental data collection where parameters vary per file.
+    """
     if not os.path.exists(filename):
         return []
     # Read the Textfile and get station id
@@ -298,6 +522,24 @@ def _read_params(filename: str) -> List[str]:
 
 
 def _read_id(filename: str) -> int:
+    """
+    Extracts the station ID from the specified file. The station ID is expected to be located in the first column of
+    the second line of the file. This function is typically used for files where the first line is a header and the
+    second line begins with station data.
+
+    :param filename: The path to the file from which to extract the station ID.
+
+    :return: An integer representing the station ID, or -1 if the file does not exist, the second line does not
+             contain data, or the first column of the second line cannot be converted to an integer.
+
+    :raises FileNotFoundError: If the file specified does not exist.
+
+    Note:
+    This function checks the existence of the file, reads up to the second line, and attempts to parse the station ID
+    from the first column. It uses a helper function `int_def` to ensure that non-integer values or parse errors do
+    not cause a crash but instead return a default value of -1. This approach provides robustness against file read
+    errors and formatting issues.
+    """
     if not os.path.exists(filename):
         return -1
     # Read the Textfile and get station id

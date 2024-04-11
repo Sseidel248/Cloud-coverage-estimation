@@ -1,23 +1,19 @@
 """
-File name:      Main_Downloader.py
-Author:         Sebastian Seidel
-Date:           2023-11-15
-Description:    Downloads data from measuring stations and weather models.
-                    Measuring stations:
-                        Current values:
-                            Cloudiness
-                            Cloud-Type
-                    Weather model
-                        ICON-D2:
-                            CLCT - Cloud Cover Total
-                        ICON-EU:
-                            CLCT - Cloud Cover Total
+General Information:
+______
+- File name:      Main_Downloader.py
+- Author:         Sebastian Seidel
+- Date:           2023-11-15
 
-Required:       re - Regular expression
-                os - File operations
-                datetime - Date operations
-                requests - HTTP access
-                bs4 - beautifulsoup4, HTML and XML parser
+Description:
+______
+Downloads data from measuring stations and weather models.
+
+    Current values
+        `Cloudiness`
+    Weather model
+        `ICON-D2` - CLCT - Cloud Cover Total
+        `ICON-EU` - CLCT - Cloud Cover Total
 """
 from WeatherModelData import *
 from WeatherStationData import *
@@ -26,10 +22,24 @@ from colorama import Fore, Style
 
 
 def show_start_message(title: str):
+    """
+    Prints the start download message for a given title, highlighting the message in green.
+
+    :param title: A string representing the title of the content to be downloaded.
+
+    :returns: None. This function prints a message to the console and does not return a value.
+    """
     print(Fore.GREEN + f"Start Download of {title}..." + Style.RESET_ALL)
 
 
 def show_number_of_files(count):
+    """
+    Prints the number of files that have been downloaded, highlighting the message in green.
+
+    :param count: An integer representing the number of files that have been downloaded.
+
+    :returns: None. This function prints a message to the console and does not return a value.
+    """
     print(Fore.GREEN + f"{str(count)} files have been downloaded.\n" + Style.RESET_ALL)
 
 
@@ -38,13 +48,13 @@ download_measuring_station = True
 
 # Download ICON-d2 data
 show_start_message("ICON-D2 CLCT Data")
-download_urls_d2 = get_dwd_model_data_links(ICON_D2, ".\\WeatherData")
+download_urls_d2 = get_dwd_model_data_links(HTML_ICON_D2, ".\\WeatherData")
 download_data(download_urls_d2)
 show_number_of_files(len(download_urls_d2))
 
 # Download ICON-EU data
 show_start_message("ICON-EU CLCT Data")
-download_urls_eu = get_dwd_model_data_links(ICON_EU, ".\\WeatherData")
+download_urls_eu = get_dwd_model_data_links(HTML_ICON_EU, ".\\WeatherData")
 download_data(download_urls_eu)
 show_number_of_files(len(download_urls_eu))
 

@@ -1,3 +1,16 @@
+"""
+General Information:
+______
+- File name:      Grib2Reader.py
+- Author:         Sebastian Seidel
+- Date:           2024-04-10
+
+Description:
+______
+Used to read certain parameters for a desired position (latitude and longitude) from grib2 files of
+the DWD (German Weather Service).
+"""
+
 import re
 import os
 import bz2
@@ -25,7 +38,7 @@ def split_coords(coords, n=1000):
 class Grib2Datas:
     """
     This class is used to read Grib2 files.
-    For my tests, the Grib2 files come from the DWD. The values of the parameters can then be read out for loaded times
+    The Grib2 files come from the DWD. The values of the parameters can then be read out for loaded times
     and coordinates.
 
     Attributes:
@@ -34,9 +47,11 @@ class Grib2Datas:
         (currently only ICON-D2 and ICON-EU)
         df_invalid (DataFrame): contains all loaded files that have a forecast greater than 120 minutes
 
-    get_values(...) - is used to read out the parameter values
-    get_values_idw(...) - reads out surrounding values in addition to the desired value and calculates an inverse
-    distance weighting
+    Functions:
+        `get_values(...)`: is used to read out the parameter values
+
+        `get_values_idw(...)`: reads out surrounding values in addition to the desired value and calculates an inverse
+        distance weighting
     """
 
     def __init__(self):
@@ -72,9 +87,7 @@ class Grib2Datas:
         files are found in the folder. Finally, it performs data validation and sorts the DataFrame by model and date.
 
         :param path: The path to the folder containing .bz2 archives and .grib2 files. It's checked for existence, and
-          operations are performed within it.
-        :return: None. This method does not return anything but updates the class attribute 'df' by loading, validating,
-          and sorting data from .grib2 files.
+        operations are performed within it.
         """
         if not os.path.exists(path):
             raise FileNotFoundError(f"Folder: '{path}' not exist.")
@@ -102,9 +115,9 @@ class Grib2Datas:
         :param model: The model name as a string to filter the data.
         :param param: The parameter name as a string for which values are retrieved.
         :param date_times: A datetime object or a list of datetime objects specifying the date-times for which values
-          are requested.
+        are requested.
         :param coords: A tuple of floats representing a single coordinate pair (latitude, longitude) or a list of such
-          tuples for multiple coordinates.
+        tuples for multiple coordinates.
 
         :returns: A pandas DataFrame containing the fetched data, structured with columns for dates, forecast dates,
         forecast minutes, latitudes, longitudes, and the specified parameter values.
@@ -160,6 +173,7 @@ class Grib2Datas:
         unique_date_times = np_closest_grib2_date(unique_date_times)
         np_conv_coords_func = np.vectorize(gFunc.convert_in_0_360)
         np_coords = np_conv_coords_func(np_coords)
+        np_coords = np.round(np_coords, 8)
 
         # define the return DatFrame
         cols = [COL_DATE, COL_MODEL_FCST_DATE, COL_MODEL_FCST_MIN, COL_LAT, COL_LON, param]
@@ -226,23 +240,22 @@ class Grib2Datas:
         :param model: The model name as a string, used to filter the dataset.
         :param param: The parameter name as a string, indicating which values to retrieve and interpolate.
         :param date_times: A single datetime object or a list of datetime objects specifying the date-times for the
-          interpolation.
+        interpolation.
         :param coords: A single tuple of (latitude, longitude) or a list of tuples for multiple coordinates where
-          interpolation is desired.
+        interpolation is desired.
         :param radius: A float specifying the radius around each coordinate to consider for the interpolation, with a
-          default value of 0.04°.
+        default value of 0.04°.
 
         :returns: A pandas DataFrame with the interpolated values for the specified parameter at each provided
-          coordinate and date-time. The DataFrame includes columns for dates, latitudes, longitudes, and the specified
-          parameter.
+        coordinate and date-time. The DataFrame includes columns for dates, latitudes, longitudes, and the specified
+        parameter.
 
         This method first expands the given coordinates to include nearby points within the specified radius and then
         retrieves the values for these points. It calculates the IDW interpolated value for each original coordinate
         based on the retrieved values and their distances. The resulting DataFrame contains the original date-times,
         coordinates, and interpolated parameter values.
 
-        Raises:
-        - ValueError: If input dimensions or types are not as expected, or if any other input validations fail.
+        :raises ValueError: If input dimensions or types are not as expected, or if any other input validations fail.
         """
 
         def idw(group, dist_col, value_col, q=1):
@@ -296,10 +309,12 @@ class Grib2Datas:
         closest forecast date-time, and returns this date-time.
 
         :param date_time: The reference datetime object for which the closest date-time in the dataframe is to be found.
-        :return: A datetime object representing the closest forecast date-time to the specified date_time in the
-          dataframe.
 
-        Note: This method assumes that the dataframe has a column named as per the global variable
+        :return: A datetime object representing the closest forecast date-time to the specified date_time in the
+        dataframe.
+
+        Note:
+        This method assumes that the dataframe has a column named as per the global variable
         'COL_MODEL_FCST_DATE' that contains datetime objects.
         """
         differences = (self.df[COL_MODEL_FCST_DATE] - date_time).abs()
@@ -320,7 +335,8 @@ class Grib2Datas:
         - Updates `self.df` to only include entries where forecast minutes are 120 or less.
         - Removes duplicate entries from `self.df_models`.
 
-        Note: This method directly modifies the class attributes `self.df`, `self.df_invalid`, and `self.df_models`
+        Note:
+        This method directly modifies the class attributes `self.df`, `self.df_invalid`, and `self.df_models`
         based on the specified validation criteria.
         """
         self.df_invalid = self.df[self.df[COL_MODEL_FCST_MIN] > 120]
@@ -343,7 +359,8 @@ class Grib2Datas:
           geographic coordinates.
         - Adds a new row with the extracted data to both `self.df` and `self.df_models` dataframes.
 
-        Note: This method assumes the presence of a predefined pattern (PATTERN) to parse the command output and relies
+        Note:
+        This method assumes the presence of a predefined pattern (PATTERN) to parse the command output and relies
         on the wgrib2 command-line tool. The method updates class dataframes directly, adding new entries for each
         processed file.
         """
@@ -403,7 +420,8 @@ def _create_coords_in_radius(lat: float,
              - A list of floats, each representing the squared distance of the corresponding point from the central
                point.
 
-    Note: The distances are distances, calculated as sqrt((Δlat)^2 + (Δlon)^2), and are rounded to 6 decimal places.
+    Note:
+    The distances are distances, calculated as sqrt((Δlat)^2 + (Δlon)^2), and are rounded to 6 decimal places.
     """
     points = []
     distances = []
@@ -430,7 +448,8 @@ def _get_model(delta: float) -> str:
     :param delta: The delta value representing the grid spacing of the weather model.
     :return: A string representing the model name based on the delta value.
 
-    Note: The method currently supports specific delta values for predefined models. Other delta values will default
+    Note:
+    The method currently supports specific delta values for predefined models. Other delta values will default
     to a known 'unknown' model identifier.
     """
     model: str = MODEL_UNKNOWN
@@ -450,11 +469,12 @@ def _extract_bz2_archives(bz2_archives: List[str]):
     archive. This process is used for preparing the data for further processing.
 
     :param bz2_archives: A list of strings, where each string is a file path to a .bz2 archive that needs to be
-      extracted.
+    extracted.
 
     :return: None. The method performs file extraction side effects but does not return any value.
 
-    Note: This method checks for the existence of the extracted file before attempting extraction to avoid redundant
+    Note:
+    This method checks for the existence of the extracted file before attempting extraction to avoid redundant
     operations.
     """
     # If there are no archives, then nothing needs to be unpacked

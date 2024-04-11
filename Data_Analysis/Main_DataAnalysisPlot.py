@@ -1,7 +1,14 @@
 """
-File name:      Main_DataAnalysisPlot.py
-Author:         Sebastian Seidel
-Date:           2024.**.**
+General Information:
+______
+- File name:      Main_DataAnalysisPlot.py
+- Author:         Sebastian Seidel
+- Date:           2024.04.10
+
+Description:
+______
+The generated export files ('.csv' or '.pkl') from Main_DataAnalysisExport.py are loaded and analyzed
+here. After the evaluation and analysis, graphics are saved in addition to textual results.
 """
 import os
 import pickle
@@ -26,6 +33,20 @@ from pathlib import Path
 
 
 def _set_fonts(scale: float = 1):
+    """
+    Sets the font family and sizes for matplotlib plots to Calibri, adjusting the size based on a scaling factor.
+
+    This function directly modifies the matplotlib runtime configuration (rcParams) to set the global font family to
+    Calibri and adjusts the font size for different elements of the plots (general font size, axes titles, and axes
+    labels) according to the provided scale factor. The default font size is multiplied by the scale to allow for
+    customization of the plot's appearance.
+
+    :param scale: (float, optional): A scaling factor for the font sizes. The default value is 1, which keeps the font
+                  sizes at their base values (12 for general text, axes titles, and labels). A value greater than 1
+                  increases the font sizes proportionally, while a value less than 1 decreases them.
+
+    :return: None
+    """
     plt.rcParams["font.family"] = "calibri"
     plt.rcParams["font.size"] = 12 * scale
     plt.rcParams["axes.titlesize"] = 12 * scale
@@ -33,6 +54,19 @@ def _set_fonts(scale: float = 1):
 
 
 def _show_and_export(a_plt: pyplot, show: bool, exportname: str):
+    """
+    Displays or exports a Matplotlib plot based on the given parameters. The plot can be exported to a file
+    with the specified name. If exporting, the function checks the file extension to decide on the DPI setting;
+    .png files are saved with a high DPI for better resolution.
+
+    :param a_plt: The Matplotlib pyplot object to be shown or exported.
+    :param show: A boolean flag that determines whether the plot should be displayed. If False, the plot is not shown.
+    :param exportname: The filename for exporting the plot. If this is an empty string, no file is exported.
+                       Supports high-resolution export for .png files specifically.
+
+    Note: If 'exportname' is provided and does not end with '.png', the plot is saved with default DPI settings.
+          The function closes the plot window if 'show' is False, to prevent it from using system resources.
+    """
     if exportname != "":
         _, ext = os.path.split(exportname)
         if ext == ".png":
@@ -47,12 +81,39 @@ def _show_and_export(a_plt: pyplot, show: bool, exportname: str):
 
 def _show_median_on_violin(df: DataFrame,
                            a_plt: pyplot):
+    """
+    Annotates the median values on each violin plot in a Matplotlib figure. This function iterates through
+    the columns of the provided DataFrame, calculates the median for each column, and then uses the pyplot
+    text method to display these median values at the appropriate position on each violin plot.
+
+    :param df: The pandas DataFrame containing the data for which violin plots have been created. Assumes that each
+               column in the DataFrame corresponds to a separate violin plot on the current pyplot figure.
+    :param a_plt: The Matplotlib pyplot object on which the violin plots are drawn and where the median annotations
+                  will be added.
+
+    Note: The function calculates the median value for each column in the DataFrame and displays it on the
+          corresponding violin plot. The median is formatted to two decimal places. The annotations are positioned
+          just above the median value within each plot, aligned to the left of the centerline of the violin plot.
+    """
     for i, col in enumerate(df.columns):
         median_val = df[col].median()
         a_plt.text(i + 1, median_val, f' {median_val:.2f}', color='black', ha='left', va='bottom')
 
 
 def _add_geographic(ax: Axes):
+    """
+    Enhances the provided Matplotlib Axes object by adding geographic features such as coastlines, borders,
+    oceans, lakes, and rivers. It also adds gridlines to the plot for better readability and geographic
+    orientation. The function is designed to work with cartopy, a library for geographic data visualization.
+
+    :param ax: The Matplotlib Axes object to which the geographic features will be added. This object must be
+               compatible with cartopy, as the features are added using cartopy's feature interface.
+
+    Note: Borders are added with a dotted line style, lakes are semi-transparent, and rivers are added with
+          default styling. Gridlines are added with labels on the left and bottom edges only, with a light gray,
+          semi-transparent, dashed line style. Top and right labels for gridlines are disabled to maintain a
+          clean appearance.
+    """
     ax.add_feature(cfeature.COASTLINE)
     ax.add_feature(cfeature.BORDERS, linestyle=":")
     ax.add_feature(cfeature.OCEAN)
@@ -67,6 +128,29 @@ def _make_subplot_cloud_coverage(ax: Axes,
                                  data_model: DataFrame,
                                  data_dwd: DataFrame,
                                  colors: LinearSegmentedColormap) -> PathCollection:
+    """
+    Adds cloud coverage data to a subplot represented by the given Axes object. This function uses two sets of
+    data: model data for cloud coverage and DWD station data, and plots them with distinct markers and colors.
+    Geographic features such as coastlines, borders, and bodies of water are added for context. Model data points
+    are displayed as squares colored based on cloud cover percentage, while DWD station data points are marked
+    with red 'x' symbols.
+
+    :param ax: The Matplotlib Axes object on which the data will be plotted. Should be set up with a geographic
+               projection compatible with cartopy.
+    :param data_model: A pandas DataFrame containing model data with longitude (COL_LON), latitude (COL_LAT),
+                       and cloud coverage (CLOUD_COVER) columns.
+    :param data_dwd: A pandas DataFrame containing DWD station data, expected to have longitude (COL_LON) and
+                     latitude (COL_LAT) columns.
+    :param colors: A Matplotlib LinearSegmentedColormap used to color the model data points based on their cloud
+                   coverage values.
+
+    :return: A PathCollection object representing the model data points plotted on the map.
+
+    Note: This function is designed to visually distinguish between model data and DWD station data on the plot,
+          with specific attention to representing cloud coverage data effectively. It also decorates the plot
+          with helpful geographic context by calling an internal function to add features like coastlines and
+          borders.
+    """
     _add_geographic(ax)
     sc = ax.scatter(data_model[COL_LON], data_model[COL_LAT],
                     c=data_model[CLOUD_COVER],
@@ -89,6 +173,26 @@ def _show_as_table(title: str,
                    dwd_locs: DataFrame,
                    icon_d2_area: DataFrame,
                    icon_eu_area: DataFrame):
+    """
+    Displays a consolidated table in the console, summarizing the DWD location data along with the closest
+    matching entries from ICON-D2 and ICON-EU model data based on geographic proximity. The function calculates
+    the Euclidean distance between each DWD location and all ICON model data points, identifies the closest
+    model data points for both ICON-D2 and ICON-EU, and prints a table that includes the DWD data and the
+    cloud coverage values from the closest points in both models.
+
+    Parameters:
+    :param title: A string to be displayed as the title of the table.
+    :param dwd_locs: A pandas DataFrame containing DWD station locations, expected to include columns for
+                     latitude (COL_LAT) and longitude (COL_LON).
+    :param icon_d2_area: A pandas DataFrame containing ICON-D2 model data, including latitude (COL_LAT),
+                         longitude (COL_LON), and cloud coverage (CLOUD_COVER) among others.
+    :param icon_eu_area: A pandas DataFrame containing ICON-EU model data in the same format as icon_d2_area.
+
+    Note: The function removes specific columns from the ICON model data (like forecast date and minimum forecast)
+          before displaying the table. It renames the cloud coverage columns to distinguish between the two models.
+          The resulting table is printed to the console, providing an easy-to-read comparison of DWD locations
+          and their corresponding cloud coverage values from the nearest ICON-D2 and ICON-EU model data points.
+    """
     print(f"\n~~~{title}~~~\n")
     dist_mat_d2 = cdist(dwd_locs[[COL_LAT, COL_LON]], icon_d2_area[[COL_LAT, COL_LON]],
                         metric="euclidean")
@@ -110,6 +214,21 @@ def _show_as_table(title: str,
 
 
 def _drop_param(df: DataFrame, params: list[str]) -> DataFrame:
+    """
+    Removes specified columns from the DataFrame and then drops any rows that contain NaN values. This function
+    creates a copy of the input DataFrame, removes the columns listed in 'params' if they exist, and subsequently
+    removes any rows that have missing values in any of the remaining columns.
+
+    :param df: The pandas DataFrame from which columns and rows with NaN values will be removed.
+    :param params: A list of strings representing the names of the columns to be removed from the DataFrame.
+
+    :return: A pandas DataFrame that has been cleaned by removing specified columns and any rows with NaN values
+             across the remaining columns.
+
+    Note: This function is particularly useful for cleaning data by removing unnecessary columns and ensuring
+          that the dataset does not contain any incomplete records. The operation is performed on a copy of
+          the input DataFrame to avoid modifying the original data.
+    """
     df_clean = df.copy()
     for param in params:
         if param in df.columns:
@@ -121,6 +240,21 @@ def _drop_param(df: DataFrame, params: list[str]) -> DataFrame:
 
 
 def _get_param_x_label(param: str) -> str:
+    """
+    Returns a descriptive x-axis label for a given weather parameter. The function maps common weather parameter
+    abbreviations to their full descriptions and units, facilitating more informative plot labels.
+
+    :param param: A string representing the abbreviation of the weather parameter. Recognized parameters include
+                  'V_N' for cloud cover, 'F' for wind speed, 'RF_TU' for relative humidity, 'TT_TU' for air temperature,
+                  and 'P' for sea-level air pressure.
+
+    :return: A string containing the full description and units of the parameter, suitable for use as an x-axis
+             label in plots. If the parameter is not recognized, it returns a generic label indicating an undefined
+             parameter.
+
+    Note: This function is designed to enhance the readability and interpretability of plots by providing detailed
+          axis labels for various weather-related data points.
+    """
     if param == "V_N":
         return "Bewölungsgrad [%]"
     elif param == "F":
@@ -136,6 +270,21 @@ def _get_param_x_label(param: str) -> str:
 
 
 def _print_corr_results(pvalue_n: float, coef_r: float, pvalue_r):
+    """
+    Prints the results of a correlation analysis, choosing between Pearson and Spearman correlation based on
+    a preliminary test for normal distribution. If the data are not normally distributed (p-value > 0.05),
+    Pearson correlation results are printed. Otherwise, Spearman rank correlation results are shown.
+
+    :param pvalue_n: The p-value from a test of normality. A p-value greater than 0.05 indicates that the data
+                     are not normally distributed.
+    :param coef_r: The correlation coefficient. This could be Pearson's r or Spearman's rho, depending on the
+                   distribution of the data.
+    :param pvalue_r: The p-value associated with the correlation coefficient, indicating the significance of the
+                     correlation.
+
+    Note: This function is designed to provide a flexible reporting of correlation results, automatically selecting
+          the appropriate type of correlation analysis based on the distribution characteristics of the data.
+    """
     # Data not normally distributed
     if pvalue_n > 0.05:
         print(f"Person-Korrelationsberechnung: Koeffizient={coef_r}")
@@ -156,6 +305,27 @@ def make_hist(df: DataFrame,
               min_value: float = 0,
               max_y_lim: int = -1,
               color_value_above: float = 0):
+    """
+    Creates and optionally displays or exports a histogram for the specified DataFrame. The histogram's appearance
+    is customizable with parameters for the title, axis labels, and color. Values above a certain threshold can be
+    highlighted in a different color.
+
+    :param df: The pandas DataFrame containing the data to plot.
+    :param title: The title of the histogram.
+    :param y_label: The label for the y-axis.
+    :param x_label: The label for the x-axis.
+    :param num_bins: The number of bins for the histogram.
+    :param show: A boolean indicating whether to display the histogram. Defaults to True.
+    :param exportname: The filename for exporting the histogram. If empty, the histogram is not exported.
+    :param min_value: The minimum value to include in the histogram. Defaults to 0.
+    :param max_y_lim: The maximum limit for the y-axis. If less than or equal to 0, it is ignored.
+    :param color_value_above: A threshold value above which the histogram bars will be colored differently to
+                              highlight. If 0 or less, all bars are the same color.
+
+    Note: This function also sets custom fonts for the plot and uses a default skyblue color for histogram bars,
+          with an option to highlight bars representing values above a specified threshold in orange. Legends
+          and custom maximum y-axis limits can be added as per the parameters.
+    """
     _set_fonts()
     arr = df.hist(bins=num_bins, color="skyblue", edgecolor="black", range=[min_value, df.max()])
     plt.title(title, fontweight="bold")
@@ -182,6 +352,24 @@ def make_compare_violinplt(df1: DataFrame,
                            name2: str,
                            show: bool = True,
                            exportname: str = ""):
+    """
+    Generates a violin plot comparing the distributions of absolute errors between two models across DWD stations.
+    The function preprocesses the input DataFrames to ensure they are sorted and indexed by station ID before
+    combining them for comparison. The plot displays medians and highlights the median values on each violin.
+
+    :param df1: The pandas DataFrame containing the first dataset for comparison, expected to include a column
+                for absolute error (COL_ABS_ERROR) and station IDs (COL_STATION_ID).
+    :param name1: A descriptive name for the first dataset to be used in the plot legend and axis labeling.
+    :param df2: The pandas DataFrame containing the second dataset for comparison, similar to df1.
+    :param name2: A descriptive name for the second dataset to be used in the plot legend and axis labeling.
+    :param show: A boolean indicating whether to display the plot. Defaults to True.
+    :param exportname: The filename for exporting the plot. If empty, the plot is not exported.
+
+    Note: The plot is titled with a comparison of mean absolute errors (MAE) for cloud cover predictions by
+          the two models against DWD stations. It is equipped with a grid for better readability, and custom
+          fonts are set for aesthetic purposes. If 'show' is False or 'exportname' is provided, the plot is
+          either not displayed or exported to a file, respectively.
+    """
     _set_fonts()
     df1.sort_values(by=COL_STATION_ID, inplace=True)
     df1.reset_index(inplace=True)
@@ -203,6 +391,24 @@ def make_qq_plot(df: DataFrame,
                  title: str,
                  show: bool = True,
                  exportname: str = ""):
+    """
+    Creates a quantile-quantile (Q-Q) plot to compare the empirical quantiles of the sample data in the DataFrame
+    against the theoretical quantiles of a standard normal distribution. This plot helps in visually assessing
+    if the data follow a normal distribution. The function sets custom fonts for the plot and adds a legend to
+    distinguish between the data points and the reference line.
+
+    :param df: The pandas DataFrame containing the sample data for which the Q-Q plot will be generated.
+               Assumes that the DataFrame has a single column or that the first column will be used for the plot.
+    :param title: The title of the plot.
+    :param show: A boolean indicating whether to display the plot. Defaults to True.
+    :param exportname: The filename for exporting the plot. If empty, the plot is not exported.
+
+    Note: The plot is annotated with a title, labels for the x and y axes describing the theoretical and empirical
+          quantiles, respectively, and includes a grid for better readability. The function leverages statsmodels'
+          qqplot function for plot generation, drawing a 45-degree line that represents where the data would lie
+          if they perfectly followed a standard normal distribution. If 'show' is False or 'exportname' is
+          provided, the plot is either not displayed or exported to a file, respectively.
+    """
     _set_fonts()
     sm.qqplot(df, line='45')
     plt.title(title, fontweight="bold")
@@ -214,6 +420,19 @@ def make_qq_plot(df: DataFrame,
 
 
 def show_me_mae_rmse(df: DataFrame, col_model: str, col_dwd: str):
+    """
+    Calculates and displays the Mean Error (ME), Mean Absolute Error (MAE), and Root Mean Squared Error (RMSE)
+    for cloud coverage predictions compared to actual observations. This function assumes that the predictions
+    and observations are expressed as percentages of cloud coverage.
+
+    :param df: The pandas DataFrame containing the model predictions and actual DWD observations.
+    :param col_model: The name of the column in the DataFrame that contains the model's cloud coverage predictions.
+    :param col_dwd: The name of the column in the DataFrame that contains the actual DWD cloud coverage observations.
+
+    Note: The errors are calculated based on the differences between the model's predictions and the actual DWD
+          observations. This function prints the ME, MAE, and RMSE, providing a simple evaluation of the model's
+          prediction accuracy in terms of cloud coverage.
+    """
     me_mae_rmse = da.get_me_mae_rmse(df, col_model, col_dwd)
     print(f"Mittlerer Fehler (ME): {me_mae_rmse[0]:.2f}% Bedeckungsgrad")
     print(f"Mittlere abs. Fehler (MAE): {me_mae_rmse[1]:.2f}% Bedeckungsgrad")
@@ -224,6 +443,25 @@ def make_compare_proportion_lineplt(df1: DataFrame,
                                     df2: DataFrame,
                                     show: bool = True,
                                     exportname: str = ""):
+    """
+    Generates a line plot comparing the proportion of data points within specified absolute error ranges
+    between two datasets. This function calculates the proportion of data points that fall within each range
+    of absolute error regarding cloud coverage compared to DWD stations and plots these proportions across
+    the error ranges for both datasets.
+
+    :param df1: The pandas DataFrame for the first dataset, which should include a column for absolute error
+                in cloud coverage.
+    :param df2: The pandas DataFrame for the second dataset, structured similarly to df1.
+    :param show: A boolean indicating whether to display the plot immediately. Defaults to True.
+    :param exportname: The filename for exporting the plot to an image file. If left as an empty string, the plot
+                       will not be exported.
+
+    Note: This visualization aids in comparing the accuracy and reliability of two cloud coverage prediction
+          models against actual observations from DWD stations. It provides insights into which model tends to
+          have smaller deviations across different thresholds of absolute error. The x-axis represents error
+          thresholds, while the y-axis represents the percentage of data points below each threshold.
+    """
+
     def calc_protortion(df: DataFrame, value: int) -> float:
         return len(da.filter_dataframe_by_value(df, COL_ABS_ERROR, value, False)) / len(df) * 100
 
@@ -241,14 +479,34 @@ def make_compare_proportion_lineplt(df1: DataFrame,
     plt.title("Prozentualer Anteil der Daten basierend "
               "\nauf dem absoluten Fehler des Bewölkungsgrads der DWD-Stationen",
               fontweight="bold")
-    plt.xlabel("Absoluter Fehler [%]")
+    plt.xlabel("Differenz zu den Bewölkungsgraden des DWD")
     plt.xticks([0, 12.5, 25, 37.5, 50, 62.5, 75, 87.5, 100],
                ["0/8", "1/8", "2/8", "3/8", "4/8", "5/8", "6/8", "7/8", "8/8"])
-    plt.ylabel("Differenz zu den Bewölkungsgraden des DWD")
+    plt.ylabel("Abweichung [%]")
     _show_and_export(plt, show, exportname)
 
 
 def show_error_metrics(df: DataFrame, model: str, show: bool = True, max_y_lim: int = -1):
+    """
+    Displays various error metrics for a given prediction model against actual observations and generates histograms
+    to visualize the distribution of these errors. The function prints the mean error (ME), mean absolute error (MAE),
+    and root mean squared error (RMSE), along with the proportion of data within specific absolute error thresholds.
+    It then creates histograms for the distribution of the mean absolute error across all stations and the overall
+    distribution of absolute errors.
+
+    :param df: The pandas DataFrame containing the error data for model predictions. It must include columns for
+               absolute error (COL_ABS_ERROR) and the specific comparison columns (e.g., predicted vs. actual cloud
+               cover).
+    :param model: A string representing the name of the prediction model. This is used for titling plots and print
+    statements.
+    :param show: A boolean indicating whether to display the generated plots. Defaults to True.
+    :param max_y_lim: The maximum y-axis limit for the histogram of absolute errors. If less than or equal to 0,
+                      the limit is automatically determined by Matplotlib.
+
+    Note: This function is designed to provide a comprehensive overview of the model's prediction accuracy by
+          calculating and displaying key error metrics and visualizing the error distribution. This can aid in
+          identifying the model's performance characteristics and areas for improvement.
+    """
     stations_info = da.get_mean_abs_error_each_station(df)
     print(f"\n~~~{model}~~~\n")
     show_me_mae_rmse(df, "TCDC", "V_N")
@@ -285,6 +543,24 @@ def compare_fcst_error(df: DataFrame,
                        model: str,
                        show: bool = True,
                        exportname: str = ""):
+    """
+    Creates a violin plot comparing the distribution of the Mean Absolute Error (MAE) for different forecast
+    periods within the specified model's predictions. This visualization helps to understand how the forecast
+    accuracy changes with the length of the forecast period.
+
+    :param df: The pandas DataFrame containing the forecast error data, including columns for forecast period
+               ("Fcst_Minutes") and absolute error ("Absolute_Error").
+    :param model: A string representing the name of the prediction model. This is used for titling the plot.
+    :param show: A boolean indicating whether to display the plot immediately. Defaults to True.
+    :param exportname: The filename for exporting the plot to an image file. If left as an empty string, the plot
+                       will not be exported.
+
+    Note: The function filters the input DataFrame to create subsets for 0, 60, and 120-minute forecast periods,
+          then combines these subsets into a new DataFrame for plotting. The violin plot includes medians and
+          provides an option to highlight median values. The plot is titled with the model name and labeled to
+          reflect the forecast periods being compared. Custom fonts are set, and if specified, the plot can be
+          displayed or exported.
+    """
     df_0 = df[df["Fcst_Minutes"] == 0].reset_index()
     df_60 = df[df["Fcst_Minutes"] == 60].reset_index()
     df_120 = df[df["Fcst_Minutes"] == 120].reset_index()
@@ -310,6 +586,25 @@ def make_scatterplot_dwd_locations(df: DataFrame,
                                    show_mean_abs_error: bool = False,
                                    custom_col_bar_label: str = "",
                                    custom_title: str = ""):
+    """
+    Generates a scatter plot to visualize the geographic distribution of DWD stations, with an option to
+    color-code the stations based on the Mean Absolute Error (MAE) of a specified model's predictions. This
+    function can be used to assess the geographic distribution of error in model predictions.
+
+    :param df: The pandas DataFrame containing the station locations and, optionally, error metrics.
+    :param show: A boolean indicating whether to display the plot. Defaults to True.
+    :param exportname: The filename for exporting the plot. If empty, the plot is not exported.
+    :param model: The name of the model being evaluated. Used in the plot title when displaying MAE.
+    :param show_mean_abs_error: If True, the MAE is visualized on the plot; otherwise, only station locations are shown.
+    :param custom_col_bar_label: Custom label for the color bar. If empty and showing MAE, defaults to "Absoluter Fehler
+           [%]".
+    :param custom_title: Custom title for the plot. Overrides the default title if provided.
+
+    Note: The plot is created with a geographical map background to provide context for the station locations.
+          Stations can be color-coded based on MAE to visualize the distribution of prediction accuracy across
+          geographic locations. The function supports customization of plot aesthetics, including the title
+          and color bar labeling, to accommodate different analysis focuses.
+    """
     # calculation of MAE
     if show_mean_abs_error:
         df_data = df.groupby(COL_STATION_ID).agg({
@@ -366,6 +661,25 @@ def make_scatterplot_dwd_locs_compare(df1: DataFrame,
                                       legend_df1: str = "",
                                       legend_df2: str = "",
                                       custom_title: str = ""):
+    """
+    Generates a scatter plot to compare the geographic distribution of DWD stations as represented in two
+    different DataFrames. This visualization highlights the overlap and differences in station locations
+    between the two datasets by plotting them with distinct markers and colors.
+
+    :param df1: The pandas DataFrame containing the first set of station locations, including columns for
+                latitude (COL_LAT) and longitude (COL_LON).
+    :param df2: The pandas DataFrame containing the second set of station locations, structured similarly to df1.
+    :param show: A boolean indicating whether to display the plot. Defaults to True.
+    :param exportname: The filename for exporting the plot. If left as an empty string, the plot is not exported.
+    :param legend_df1: The legend label for the first DataFrame's stations.
+    :param legend_df2: The legend label for the second DataFrame's stations.
+    :param custom_title: A custom title for the plot. If left as an empty string, a default title is used.
+
+    Note: This function is useful for visually assessing the coverage and distribution of meteorological
+          stations within and across datasets. Stations from df1 are plotted with default settings, while
+          stations from df2 are highlighted in red with an 'x' marker for easy differentiation. The plot
+          includes geographic context such as coastlines and borders for better location understanding.
+    """
     # Grouped data
     df_data1 = df1.groupby(COL_STATION_ID).agg({
         COL_LAT: "first",
@@ -413,6 +727,27 @@ def make_scatterplots_cloud_coverage(model_data_icon_d2_area_1: str,
                                      dwd_data_area_2: str,
                                      show: bool = True,
                                      exportname: str = ""):
+    """
+    Generates scatter plots for cloud coverage comparison across two different areas between ICON-D2 and ICON-EU
+    models and corresponding DWD station observations. The function loads and processes model and DWD data,
+    creating four scatter plots in a 2x2 grid: each row represents a different area, and each column represents
+    a different model.
+
+    :param model_data_icon_d2_area_1: Path to the ICON-D2 model data for the first area.
+    :param model_data_icon_eu_area_1: Path to the ICON-EU model data for the first area.
+    :param dwd_data_area_1: Path to the DWD station observations for the first area.
+    :param model_data_icon_d2_area_2: Path to the ICON-D2 model data for the second area.
+    :param model_data_icon_eu_area_2: Path to the ICON-EU model data for the second area.
+    :param dwd_data_area_2: Path to the DWD station observations for the second area.
+    :param show: A boolean indicating whether to display the plots. Defaults to True.
+    :param exportname: The filename for exporting the plots. If empty, the plots are not exported.
+
+    Note: This function facilitates a visual comparison of model predictions against actual observations for
+          cloud coverage, highlighting differences in prediction accuracy between models and across geographic
+          areas. The plots are color-coded to represent varying degrees of cloud coverage, providing a clear visual
+          representation of both model performance and observational data. Additional summary statistics are printed
+          for each area to further assist in the comparison.
+    """
     data_icon_d2_area_1 = load(model_data_icon_d2_area_1)
     data_icon_eu_area_1 = load(model_data_icon_eu_area_1)
     dwd_locs_area_1 = load(dwd_data_area_1).dropna().reset_index()
@@ -452,6 +787,21 @@ def make_scatterplots_cloud_coverage(model_data_icon_d2_area_1: str,
 def show_used_areas_dwd_stations(df_data: DataFrame,
                                  show: bool = True,
                                  exportname: str = ""):
+    """
+    Displays a map highlighting the geographic distribution of DWD stations and delineates specific areas of
+    interest for comparison between ICON-D2 and ICON-EU model predictions. This visualization aids in understanding
+    the spatial coverage of the analysis and locates the DWD stations within the defined areas.
+
+    :param df_data: The pandas DataFrame containing the DWD station data, including longitude (COL_LON) and latitude
+                    (COL_LAT) columns, and station IDs (COL_STATION_ID).
+    :param show: A boolean indicating whether to display the plot. Defaults to True.
+    :param exportname: The filename for exporting the plot. If left as an empty string, the plot is not exported.
+
+    Note: Two areas of interest are specifically marked with red edges on the map to visualize the regions under
+          study. This function provides a clear visual reference for the geographic scope of the model comparison
+          analysis. The map includes geographical features such as coastlines, borders, and bodies of water for
+          context, enhancing the interpretability of the station locations and study areas.
+    """
     stations = df_data[[COL_STATION_ID, COL_LON, COL_LAT]].drop_duplicates()
     fig = plt.figure()
     _set_fonts()
@@ -482,18 +832,61 @@ def show_used_areas_dwd_stations(df_data: DataFrame,
 
 
 def show_num_of_station(df: DataFrame, drop_cols: list[str], param_descr: str):
+    """
+    Calculates and prints the number of unique stations capable of measuring specific parameters, as described
+    by `param_descr`. This is determined by dropping specified columns from the DataFrame and counting the unique
+    station IDs that remain after removing rows with missing data.
+
+    :param df: The pandas DataFrame containing station data, including a column for station IDs (COL_STATION_ID)
+               and measurements for various parameters.
+    :param drop_cols: A list of strings representing the names of the columns to be dropped. These columns are
+                      presumed to not be relevant for the current analysis.
+    :param param_descr: A descriptive string representing the parameters of interest for which the stations are
+                        being counted. This description is used in the output message.
+
+    Note: This function is useful for understanding the coverage of specific measurements across the network of
+          stations. By dropping irrelevant columns and rows with missing data, it provides a count of stations
+          that have non-missing data for the remaining measurements.
+    """
     tmp = df.drop(drop_cols, axis=1).copy()
     tmp.dropna(inplace=True)
     print(f"Anzahl Stationen die nur {param_descr} messen können: {len(tmp[COL_STATION_ID].unique())}")
 
 
 def calc_dwd_outliers(df: DataFrame) -> DataFrame:
+    """
+    Identifies DWD stations as outliers based on their Mean Absolute Error (MAE) being above a specified threshold.
+    The function calculates the MAE for each station and then applies a custom Z-score calculation to identify
+    outliers with an MAE exceeding 12.5%.
+
+    :param df: The pandas DataFrame containing station data and absolute error measurements.
+
+    :return: A pandas DataFrame containing only the stations identified as outliers based on their MAE.
+
+    Note: This function relies on a predefined threshold (12.5%) for identifying outliers. Stations with an MAE
+          above this threshold are considered outliers and are returned in the resulting DataFrame.
+    """
     abs_error = da.get_mean_abs_error_each_station(df)
     dwd_station_outliers = da.calc_custom_z_score(abs_error, COL_MEAN_ABS_ERROR, 12.5)
     return dwd_station_outliers.loc[dwd_station_outliers[COL_MEAN_ABS_ERROR] >= 12.5]
 
 
 def load(filename: str) -> DataFrame:
+    """
+    Loads data from a specified file into a pandas DataFrame. The function supports loading from CSV and pickle
+    ('.pkl') files. It automatically detects the file extension and applies the appropriate loading method.
+
+    :param filename: The path to the file to be loaded.
+
+    :return: A pandas DataFrame containing the loaded data.
+
+    :raises FileExistsError: If the specified file does not exist.
+    :raises ValueError: If the file extension is not supported (i.e., not `.csv` or `.pkl`).
+
+    Note: For CSV files, a semicolon (`;`) is assumed as the separator, and a comma (`,`) as the decimal point.
+          This function provides a unified interface for loading data, simplifying the process of working with
+          different file formats.
+    """
     if not os.path.exists(filename):
         raise FileExistsError
     filepath = Path(filename)
@@ -503,7 +896,7 @@ def load(filename: str) -> DataFrame:
         with open(filename, 'rb') as file:
             return pickle.load(file)
     else:
-        raise ValueError("Unsupported file extension. Only *.cvs and *.pkl are supported.")
+        raise ValueError("Unsupported file extension. Only *.csv and *.pkl are supported.")
 
 
 # Initialisation

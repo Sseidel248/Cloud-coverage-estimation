@@ -1,20 +1,24 @@
 """
-File name:      DataAnalysis.py
-Author:         Sebastian Seidel
-Date:           2024.01.22
+General Information:
+______
+- File name:      DataAnalysis.py
+- Author:         Sebastian Seidel
+- Date:           2024.01.22
 
+Description:
+______
 This Python module contains a collection of utility functions designed to process and analyze weather
 station data. It includes functions to calculate error metrics, filter and describe data, and perform
 various checks and descriptive statistics on weather station measurements.
 
 Functions in this module:
-- filter_dataframe_by_value: Filters the given DataFrame based on specific value.
-- calc_abs_error: Calculates the absolute error.
-- get_abs_error_each_station: Computes mean absolute error for each station.
-- get_me_mae_rmse: Calculates ME, MAE, and RMSE for a given DataFrame.
-- get_dwd_height_details: Provides descriptive statistics for the station height column.
+______
+- `filter_dataframe_by_value`: Filters the given DataFrame based on specific value.
+- `calc_abs_error`: Calculates the absolute error.
+- `get_abs_error_each_station`: Computes mean absolute error for each station.
+- `get_me_mae_rmse`: Calculates ME, MAE, and RMSE for a given DataFrame.
+- `get_dwd_height_details`: Provides descriptive statistics for the station height column.
 
-Each function is documented with a detailed description, parameters, and return values.
 """
 import numpy as np
 import pandas as pd
@@ -31,6 +35,7 @@ def _check_column_name_exist(df: DataFrame, column_name: str) -> None:
 
     :param df: DataFrame in which to check for the column name.
     :param column_name: The name of the column to be checked for existence.
+
     :return: None. Raises an exception if the column name does not exist.
     """
     if column_name not in df:
@@ -48,6 +53,7 @@ def filter_dataframe_by_value(df: DataFrame, column_name: str, value: float, gre
     :param greater_than: A boolean flag to determine the filter type. If True, the function
                          filters out rows where the column value is greater than the specified value.
                          If False, it filters out rows where the column value is less than the specified value.
+
     :return: A DataFrame filtered according to the specified column, value, and filter type.
     """
     _check_column_name_exist(df, column_name)
@@ -65,6 +71,7 @@ def calc_abs_error(df: DataFrame, col_model: str, col_dwd: str) -> None:
     :param df: The DataFrame containing the columns to be compared.
     :param col_model: The name of the first column to be used in the calculation.
     :param col_dwd: The name of the second column to be used in the calculation.
+
     :return: None. The function adds a new column to the DataFrame containing the absolute error.
     """
     _check_column_name_exist(df, col_model)
@@ -81,6 +88,7 @@ def get_error_metric_each_station(df: DataFrame, col_model: str, col_dwd: str) -
     :param df: The DataFrame containing the data.
     :param col_model: The name of the column representing the model values.
     :param col_dwd: The name of the column representing the observed values.
+
     :return: A DataFrame with the error metrics (ME, MAE, RMSE) calculated for each station.
     """
     _check_column_name_exist(df, col_model)
@@ -102,6 +110,7 @@ def get_mean_abs_error_each_station(df: DataFrame) -> DataFrame:
     Calculates the mean absolute error for each station in the DataFrame.
 
     :param df: The DataFrame containing the data with absolute errors and station IDs.
+
     :return: A DataFrame with two columns: station ID and the mean absolute error for each station.
     """
     _check_column_name_exist(df, COL_STATION_ID)
@@ -119,6 +128,7 @@ def get_me_mae_rmse(df: DataFrame, col_model: str, col_dwd: str) -> Tuple[float,
     :param df: The DataFrame containing the model and observed data.
     :param col_model: The name of the column representing the model values.
     :param col_dwd: The name of the column representing the observed values.
+
     :return: A tuple containing the ME, MAE, and RMSE values.
     """
     _check_column_name_exist(df, col_model)
@@ -136,8 +146,9 @@ def get_dwd_col_details(df: DataFrame, col_name: str) -> Series:
 
     :param df: The DataFrame containing the height data of the stations.
     :param col_name: Specifies the column to be described.
+
     :return: A pandas Series containing descriptive statistics (count, mean, std, min, 25%, 50%, 75%, max)
-             for a dwd-station data column.
+    for a dwd-station data column.
     """
     _check_column_name_exist(df, col_name)
     tmp = df[col_name].dropna()
@@ -159,6 +170,7 @@ def calc_custom_z_score(df: DataFrame, col_name: str, limit: float) -> DataFrame
     :param col_name: The name of the column for which to calculate the custom Z-Score.
     :param limit: A float representing the limit used to calculate the difference for the custom Z-Score instead of
     using the mean.
+
     :return: The original DataFrame with an additional column named "Z_SCORE" for the custom Z-Score of the specified
     column.
     """
@@ -169,6 +181,24 @@ def calc_custom_z_score(df: DataFrame, col_name: str, limit: float) -> DataFrame
 
 
 def calc_corr_coef(pvalue: float, df: DataFrame, col_name1: str, col_name2: str) -> Tuple[float, float]:
+    """
+    Calculates the correlation coefficient between two columns in a DataFrame. The type of correlation (Pearson
+    or Spearman) is determined based on a given p-value threshold, which indicates whether the data are normally
+    distributed. Pearson correlation is used if the data are normally distributed (pvalue <= 0.05); otherwise,
+    Spearman correlation is used.
+
+    :param pvalue: The p-value from a normality test that determines which correlation coefficient to use. A p-value
+                   greater than 0.05 indicates non-normal distribution, prompting the use of Spearman correlation.
+    :param df: The pandas DataFrame containing the data.
+    :param col_name1: The name of the first column to be used in the correlation calculation.
+    :param col_name2: The name of the second column to be used in the correlation calculation.
+
+    :return: A tuple containing the correlation coefficient and the associated p-value of the test.
+
+    Note:
+    The function first checks if both specified columns exist in the DataFrame and then proceeds to calculate
+    the correlation on non-NA pairs. This approach ensures the calculation is robust to missing data.
+    """
     _check_column_name_exist(df, col_name1)
     _check_column_name_exist(df, col_name2)
     data = df[[col_name1, col_name2]].dropna()
@@ -179,4 +209,3 @@ def calc_corr_coef(pvalue: float, df: DataFrame, col_name1: str, col_name2: str)
     else:
         coef, pvalue = spearmanr(data[col_name1], data[col_name2])
     return coef, pvalue
-
