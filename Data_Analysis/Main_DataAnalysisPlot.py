@@ -11,7 +11,6 @@ The generated export files ('.csv' or '.pkl') from Main_DataAnalysisExport.py ar
 here. After the evaluation and analysis, graphics are saved in addition to textual results.
 """
 import os
-import pickle
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import cartopy.crs as ccrs
@@ -20,11 +19,11 @@ import numpy
 import numpy as np
 import pandas as pd
 import statsmodels.api as sm
+import Lib.DataAnalysis as da
 
 from matplotlib import pyplot
 from matplotlib.axes import Axes
 from matplotlib.collections import PathCollection
-from Lib import DataAnalysis as da
 from pandas import DataFrame
 from Lib.IOConsts import *
 from matplotlib.colors import LinearSegmentedColormap
@@ -169,50 +168,6 @@ def _make_subplot_cloud_coverage(ax: Axes,
     return sc
 
 
-def _show_as_table(title: str,
-                   dwd_locs: DataFrame,
-                   icon_d2_area: DataFrame,
-                   icon_eu_area: DataFrame):
-    """
-    Displays a consolidated table in the console, summarizing the DWD location data along with the closest
-    matching entries from ICON-D2 and ICON-EU model data based on geographic proximity. The function calculates
-    the Euclidean distance between each DWD location and all ICON model data points, identifies the closest
-    model data points for both ICON-D2 and ICON-EU, and prints a table that includes the DWD data and the
-    cloud coverage values from the closest points in both models.
-
-    Parameters:
-    :param title: A string to be displayed as the title of the table.
-    :param dwd_locs: A pandas DataFrame containing DWD station locations, expected to include columns for
-                     latitude (COL_LAT) and longitude (COL_LON).
-    :param icon_d2_area: A pandas DataFrame containing ICON-D2 model data, including latitude (COL_LAT),
-                         longitude (COL_LON), and cloud coverage (CLOUD_COVER) among others.
-    :param icon_eu_area: A pandas DataFrame containing ICON-EU model data in the same format as icon_d2_area.
-
-    Note: The function removes specific columns from the ICON model data (like forecast date and minimum forecast)
-          before displaying the table. It renames the cloud coverage columns to distinguish between the two models.
-          The resulting table is printed to the console, providing an easy-to-read comparison of DWD locations
-          and their corresponding cloud coverage values from the nearest ICON-D2 and ICON-EU model data points.
-    """
-    print(f"\n~~~{title}~~~\n")
-    dist_mat_d2 = cdist(dwd_locs[[COL_LAT, COL_LON]], icon_d2_area[[COL_LAT, COL_LON]],
-                        metric="euclidean")
-    dist_mat_eu = cdist(dwd_locs[[COL_LAT, COL_LON]], icon_eu_area[[COL_LAT, COL_LON]],
-                        metric="euclidean")
-    closest_idx_d2 = dist_mat_d2.argmin(axis=1)
-    closest_idx_eu = dist_mat_eu.argmin(axis=1)
-    closest_entries_d2 = (icon_d2_area.iloc[closest_idx_d2]
-                          .drop([COL_DATE, COL_LAT, COL_LON, COL_MODEL_FCST_MIN], axis=1)
-                          .rename(columns={CLOUD_COVER: f"{CLOUD_COVER} {MODEL_ICON_D2}"}))
-    closest_entries_eu = (icon_eu_area.iloc[closest_idx_eu]
-                          .drop([COL_DATE, COL_LAT, COL_LON, COL_MODEL_FCST_MIN], axis=1)
-                          .rename(columns={CLOUD_COVER: f"{CLOUD_COVER} {MODEL_ICON_EU}"}))
-    result_entries = pd.concat([dwd_locs,
-                                closest_entries_d2.reset_index(drop=True),
-                                closest_entries_eu.reset_index(drop=True)],
-                               axis=1)
-    print(result_entries)
-
-
 def _drop_param(df: DataFrame, params: list[str]) -> DataFrame:
     """
     Removes specified columns from the DataFrame and then drops any rows that contain NaN values. This function
@@ -269,7 +224,52 @@ def _get_param_x_label(param: str) -> str:
         return "Undefinierter Parameter [-]"
 
 
-def _print_corr_results(pvalue_n: float, coef_r: float, pvalue_r):
+def show_as_table(title: str,
+                  dwd_locs: DataFrame,
+                  icon_d2_area: DataFrame,
+                  icon_eu_area: DataFrame):
+    """
+    Displays a consolidated table in the console, summarizing the DWD location data along with the closest
+    matching entries from ICON-D2 and ICON-EU model data based on geographic proximity. The function calculates
+    the Euclidean distance between each DWD location and all ICON model data points, identifies the closest
+    model data points for both ICON-D2 and ICON-EU, and prints a table that includes the DWD data and the
+    cloud coverage values from the closest points in both models.
+
+    Parameters:
+    :param title: A string to be displayed as the title of the table.
+    :param dwd_locs: A pandas DataFrame containing DWD station locations, expected to include columns for
+                     latitude (COL_LAT) and longitude (COL_LON).
+    :param icon_d2_area: A pandas DataFrame containing ICON-D2 model data, including latitude (COL_LAT),
+                         longitude (COL_LON), and cloud coverage (CLOUD_COVER) among others.
+    :param icon_eu_area: A pandas DataFrame containing ICON-EU model data in the same format as icon_d2_area.
+
+    Note: The function removes specific columns from the ICON model data (like forecast date and minimum forecast)
+          before displaying the table. It renames the cloud coverage columns to distinguish between the two models.
+          The resulting table is printed to the console, providing an easy-to-read comparison of DWD locations
+          and their corresponding cloud coverage values from the nearest ICON-D2 and ICON-EU model data points.
+    """
+    print(f"\n~~~{title}~~~\n")
+    dist_mat_d2 = cdist(dwd_locs[[COL_LAT, COL_LON]], icon_d2_area[[COL_LAT, COL_LON]],
+                        metric="euclidean")
+    dist_mat_eu = cdist(dwd_locs[[COL_LAT, COL_LON]], icon_eu_area[[COL_LAT, COL_LON]],
+                        metric="euclidean")
+    closest_idx_d2 = dist_mat_d2.argmin(axis=1)
+    closest_idx_eu = dist_mat_eu.argmin(axis=1)
+    # Get the model values with the index array and adjust the DataFrame
+    closest_entries_d2 = (icon_d2_area.iloc[closest_idx_d2]
+                          .drop([COL_DATE, COL_LAT, COL_LON, COL_MODEL_FCST_MIN], axis=1)
+                          .rename(columns={CLOUD_COVER: f"{CLOUD_COVER} {MODEL_ICON_D2}"}))
+    closest_entries_eu = (icon_eu_area.iloc[closest_idx_eu]
+                          .drop([COL_DATE, COL_LAT, COL_LON, COL_MODEL_FCST_MIN], axis=1)
+                          .rename(columns={CLOUD_COVER: f"{CLOUD_COVER} {MODEL_ICON_EU}"}))
+    result_entries = pd.concat([dwd_locs,
+                                closest_entries_d2.reset_index(drop=True),
+                                closest_entries_eu.reset_index(drop=True)],
+                               axis=1)
+    print(result_entries)
+
+
+def print_corr_results(pvalue_n: float, coef_c: float, pvalue_c):
     """
     Prints the results of a correlation analysis, choosing between Pearson and Spearman correlation based on
     a preliminary test for normal distribution. If the data are not normally distributed (p-value > 0.05),
@@ -277,9 +277,9 @@ def _print_corr_results(pvalue_n: float, coef_r: float, pvalue_r):
 
     :param pvalue_n: The p-value from a test of normality. A p-value greater than 0.05 indicates that the data
                      are not normally distributed.
-    :param coef_r: The correlation coefficient. This could be Pearson's r or Spearman's rho, depending on the
+    :param coef_c: The correlation coefficient. This could be Pearson's r or Spearman's rho, depending on the
                    distribution of the data.
-    :param pvalue_r: The p-value associated with the correlation coefficient, indicating the significance of the
+    :param pvalue_c: The p-value associated with the correlation coefficient, indicating the significance of the
                      correlation.
 
     Note: This function is designed to provide a flexible reporting of correlation results, automatically selecting
@@ -287,12 +287,12 @@ def _print_corr_results(pvalue_n: float, coef_r: float, pvalue_r):
     """
     # Data not normally distributed
     if pvalue_n > 0.05:
-        print(f"Person-Korrelationsberechnung: Koeffizient={coef_r}")
-        print(f"Person-Korrelationsberechnung: P-Wert={pvalue_r}")
+        print(f"Person-Korrelationsberechnung: Koeffizient={coef_c}")
+        print(f"Person-Korrelationsberechnung: P-Wert={pvalue_c}")
     # Data normally distributed
     else:
-        print(f"Spearman-Rangkorrelationsberechnung: Koeffizient={coef_r}")
-        print(f"Spearman-Rangkorrelationsberechnung: P-Wert={pvalue_r}")
+        print(f"Spearman-Rangkorrelationsberechnung: Koeffizient={coef_c}")
+        print(f"Spearman-Rangkorrelationsberechnung: P-Wert={pvalue_c}")
 
 
 def make_hist(df: DataFrame,
@@ -463,6 +463,7 @@ def make_compare_proportion_lineplt(df1: DataFrame,
     """
 
     def calc_protortion(df: DataFrame, value: int) -> float:
+        """Calculates the percentage of data that is below a certain value."""
         return len(da.filter_dataframe_by_value(df, COL_ABS_ERROR, value, False)) / len(df) * 100
 
     line1 = []
@@ -780,8 +781,8 @@ def make_scatterplots_cloud_coverage(model_data_icon_d2_area_1: str,
     plt.suptitle(f"Bedeckungsgrad der Modelle\n Datum: {date}", fontweight="bold")
     # Picture export as png because svg slow down word
     _show_and_export(plt, show, exportname)
-    _show_as_table("Area 1", dwd_locs_area_1, data_icon_d2_area_1, data_icon_eu_area_1)
-    _show_as_table("Area 2", dwd_locs_area_2, data_icon_d2_area_2, data_icon_eu_area_2)
+    show_as_table("Area 1", dwd_locs_area_1, data_icon_d2_area_1, data_icon_eu_area_1)
+    show_as_table("Area 2", dwd_locs_area_2, data_icon_d2_area_2, data_icon_eu_area_2)
 
 
 def show_used_areas_dwd_stations(df_data: DataFrame,
@@ -831,7 +832,7 @@ def show_used_areas_dwd_stations(df_data: DataFrame,
     _show_and_export(plt, show, exportname)
 
 
-def show_num_of_station(df: DataFrame, drop_cols: list[str], param_descr: str):
+def show_num_of_station_for_param(df: DataFrame, drop_cols: list[str], param_descr: str):
     """
     Calculates and prints the number of unique stations capable of measuring specific parameters, as described
     by `param_descr`. This is determined by dropping specified columns from the DataFrame and counting the unique
@@ -868,7 +869,7 @@ def calc_dwd_outliers(df: DataFrame) -> DataFrame:
     """
     abs_error = da.get_mean_abs_error_each_station(df)
     dwd_station_outliers = da.calc_custom_z_score(abs_error, COL_MEAN_ABS_ERROR, 12.5)
-    return dwd_station_outliers.loc[dwd_station_outliers[COL_MEAN_ABS_ERROR] >= 12.5]
+    return da.filter_dataframe_by_value(dwd_station_outliers, COL_MEAN_ABS_ERROR, 12.5)
 
 
 def load(filename: str) -> DataFrame:
@@ -892,11 +893,8 @@ def load(filename: str) -> DataFrame:
     filepath = Path(filename)
     if filepath.suffix == ".csv":
         return pd.read_csv(filename, sep=";", decimal=",")
-    elif filepath.suffix == ".pkl":
-        with open(filename, 'rb') as file:
-            return pickle.load(file)
     else:
-        raise ValueError("Unsupported file extension. Only *.csv and *.pkl are supported.")
+        raise ValueError("Unsupported file extension. Only *.csv are supported.")
 
 
 # Initialisation
@@ -967,6 +965,27 @@ make_scatterplot_dwd_locations(df_diff, show_plot, f".\\plots\\ScatPlt_Diff_MAE_
 # D2 - Calculate outliers in the data
 dwd_outlier_d2 = calc_dwd_outliers(df_d2_cloud_only)
 
+# collect all DWD-Stations who can measure all params
+print(f"\n~~~DWD-Stationsinformationen~~~\n")
+print(f"Anzahl aller Stationen (beinhaltet auch Stationshöhe): {len(df_d2_full[COL_STATION_ID].unique())}")
+
+dwd_station_all_param = df_d2_full.dropna().copy()
+print(f"Anzahl der DWD-Stationen die alle Parameter messen: {len(dwd_station_all_param[COL_STATION_ID].unique())}")
+da.calc_abs_error(dwd_station_all_param, "TCDC", "V_N")
+
+show_num_of_station_for_param(df_d2_full, ["V_N_I", "D", "F", "RF_TU", "TT_TU", "P", "P0"], "Bewölkungsgrad (V_N)")
+v_n_i_df = df_d2_cloud_only.dropna()
+measurment_counts = v_n_i_df['V_N_I'].value_counts()
+print(f"    Davon wurden {measurment_counts['I'] / len(v_n_i_df) * 100:.2f} % durch ein Instrument aufgenommen.")
+print(f"    Davon wurden {measurment_counts['P'] / len(v_n_i_df) * 100:.2f} % durch eine Person aufgenommen.")
+print(f"    Für {measurment_counts['-999'] / len(v_n_i_df) * 100:.2f} % gab es keine Angaben.")
+
+show_num_of_station_for_param(df_d2_full, ["V_N_I", "V_N", "D", "F", "RF_TU", "P", "P0"], "Lufttemperatur (TT_TU)")
+show_num_of_station_for_param(df_d2_full, ["V_N_I", "V_N", "D", "F", "TT_TU", "P", "P0"], "relative Feuchte (RF_TU)")
+show_num_of_station_for_param(df_d2_full, ["V_N_I", "D", "F", "TT_TU", "RF_TU", "P0"],
+                              "Luftdruck auf Meereshöhe NN (P)")
+show_num_of_station_for_param(df_d2_full, ["V_N_I", "D", "TT_TU", "RF_TU", "P0"], "Windgeschwindigkeit (F)")
+
 # remove unused DWD-Param
 # remove pressure at Station_height
 dwd_params.remove("P0")
@@ -977,26 +996,6 @@ dwd_params.remove("V_N")
 dwd_params.remove("V_N_I")
 # add Station-Height
 dwd_params.append(COL_STATION_HEIGHT)
-
-# collect all DWD-Stations who can measure all params
-print(f"\n~~~DWD-Stationsinformationen~~~\n")
-print(f"Anzahl aller Stationen (beinhaltet auch Stationshöhe): {len(df_d2_full[COL_STATION_ID].unique())}")
-
-dwd_station_all_param = df_d2_full.dropna().copy()
-print(f"Anzahl der DWD-Stationen die alle Parameter messen: {len(dwd_station_all_param[COL_STATION_ID].unique())}")
-da.calc_abs_error(dwd_station_all_param, "TCDC", "V_N")
-
-show_num_of_station(df_d2_full, ["V_N_I", "D", "F", "RF_TU", "TT_TU", "P", "P0"], "Bewölkungsgrad (V_N)")
-v_n_i_df = df_d2_cloud_only.dropna()
-measurment_counts = v_n_i_df['V_N_I'].value_counts()
-print(f"    Davon wurden {measurment_counts['I'] / len(v_n_i_df) * 100:.2f} % durch ein Instrument aufgenommen.")
-print(f"    Davon wurden {measurment_counts['P'] / len(v_n_i_df) * 100:.2f} % durch eine Person aufgenommen.")
-print(f"    Für {measurment_counts['-999'] / len(v_n_i_df) * 100:.2f} % gab es keine Angaben.")
-
-show_num_of_station(df_d2_full, ["V_N_I", "V_N", "D", "F", "RF_TU", "P", "P0"], "Lufttemperatur (TT_TU)")
-show_num_of_station(df_d2_full, ["V_N_I", "V_N", "D", "F", "TT_TU", "P", "P0"], "relative Feuchte (RF_TU)")
-show_num_of_station(df_d2_full, ["V_N_I", "D", "F", "TT_TU", "RF_TU", "P0"], "Luftdruck auf Meereshöhe NN (P)")
-show_num_of_station(df_d2_full, ["V_N_I", "D", "TT_TU", "RF_TU", "P0"], "Windgeschwindigkeit (F)")
 
 # explorative dataanalysis for each dwd param
 for dwd_param in dwd_params:
@@ -1018,7 +1017,7 @@ for dwd_param in dwd_params:
     _, pvalue = da.normaltest(param_details)
     print(f"Normaltest von {dwd_param}: p-Value = {pvalue:.4f}")
     coef, pvaluer = da.calc_corr_coef(pvalue, dwd_station_all_param, COL_ABS_ERROR, dwd_param)
-    _print_corr_results(pvalue, coef, pvaluer)
+    print_corr_results(pvalue, coef, pvaluer)
 
 print(f"\n~~~Vergleich Instrumentmessung und Personenmessung - Bewölkungsgrad~~~\n")
 print(

@@ -30,6 +30,7 @@ class CorruptedInitFileError(Exception):
     the initialization process encounters data that it cannot process due to errors in the file's format
     or content.
     """
+
     def __init__(self, message):
         super().__init__(message)
 
@@ -46,6 +47,7 @@ class DWDStations:
     Functions:
         `get_values(...)`: is used to read out the parameter values for a specific latitude and longitude
     """
+
     def __init__(self):
         columns = [COL_STATION_ID, COL_DATE_START, COL_DATE_END, COL_STATION_HEIGHT, COL_LAT, COL_LON,
                    COL_DWD_FILENAME, COL_PARAM, COL_DWD_LOADED]
@@ -86,15 +88,15 @@ class DWDStations:
         """
         if not os.path.exists(path):
             raise FileNotFoundError(f"Folder: '{path}' not exist.")
-        self._read_init_files(path)
         extract_dwd_archives(path)
         dwd_txt_files = gFunc.get_files(path, ".txt")
         # nothing or only the init file
-        if len(dwd_txt_files) <= 1:
+        if len(dwd_txt_files) == 0:
             raise FileNotFoundError(f"No DWD *.txt Files exist in '{path}'")
+        self._read_init_files(path)
         for dwd_txt in tqdm(dwd_txt_files, total=len(dwd_txt_files), desc="Loading DWD-Files"):
             if INIT_FILE_HOURLY_MARKER not in os.path.basename(dwd_txt):
-                self._load_dwd_txt(dwd_txt)
+                self._load_file(dwd_txt)
         self.df.sort_values(by=[COL_STATION_ID, COL_PARAM], inplace=True)
 
     def get_values(self, date_times: datetime | List[datetime],
@@ -126,6 +128,7 @@ class DWDStations:
          files and merged into the result DataFrame. The method handles missing data gracefully, filling missing
          values where possible, and strips whitespace from parameter names to ensure accurate matching.
          """
+
         def conv_to_list(data):
             if not isinstance(data, list):
                 data = [data]
@@ -146,11 +149,9 @@ class DWDStations:
         # Init start structure
         result_df: DataFrame = pd.DataFrame()
         result_df[COL_DATE] = date_times["Datetime"].apply(gFunc.round_to_nearest_hour)
-        result_df[COL_DATE] = date_times["Datetime"].apply(gFunc.datetime_to_strf)  # !!
+        result_df[COL_DATE] = result_df[COL_DATE].apply(gFunc.datetime_to_strf)  # !!
         result_df[COL_STATION_ID] = self.df.loc[(self.df[COL_LAT] == lat)
                                                 & (self.df[COL_LON] == lon), COL_STATION_ID].iloc[0]
-        result_df[COL_STATION_HEIGHT] = self.df.loc[(self.df[COL_LAT] == lat)
-                                                    & (self.df[COL_LON] == lon), COL_STATION_HEIGHT].iloc[0]
         result_df[COL_LAT] = lat
         result_df[COL_LON] = lon
         result_df[COL_STATION_HEIGHT] = np.nan
@@ -173,9 +174,6 @@ class DWDStations:
                     matching_rows[param] = matching_rows[param].str.strip()
                     result_df = result_df.merge(matching_rows[[COL_DATE, param]], on=COL_DATE, how='left')
                     result_df[COL_STATION_HEIGHT].fillna(height, inplace=True)
-        # if eor columns exist, then remove it
-        if "eor" in result_df.columns:
-            result_df = result_df.drop(columns=["eor"])
         result_df.dropna(inplace=True)
         result_df[COL_DATE] = pd.to_datetime(result_df[COL_DATE], format="%Y%m%d%H")
         return result_df
@@ -218,10 +216,10 @@ class DWDStations:
         match = re.search(r"(\d+) (\d+) (\d+)\s+(-?\d+)\s+([\d.]+)\s+([\d.]+)\s+(.*)", datastr)
         if match:
             station_id: int = int(match.group(1))
+            start_date = datetime.strptime(match.group(2), "%Y%m%d")
+            end_date = datetime.strptime(match.group(3), "%Y%m%d")
             if self.df[COL_STATION_ID].isin([station_id]).any():
                 # compare start_date and end_date and apply it
-                start_date = datetime.strptime(match.group(2), "%Y%m%d")
-                end_date = datetime.strptime(match.group(3), "%Y%m%d")
                 if start_date < self.df.loc[self.df[COL_STATION_ID] == station_id, COL_DATE_START].iloc[0]:
                     self.df.loc[self.df[COL_STATION_ID] == station_id, COL_DATE_START] = start_date
                 if end_date > self.df.loc[self.df[COL_STATION_ID] == station_id, COL_DATE_END].iloc[0]:
@@ -229,8 +227,8 @@ class DWDStations:
                 return False
             new_row = {
                 COL_STATION_ID: station_id,
-                COL_DATE_START: datetime.strptime(match.group(2), "%Y%m%d"),
-                COL_DATE_END: datetime.strptime(match.group(3), "%Y%m%d"),
+                COL_DATE_START: start_date,
+                COL_DATE_END: end_date,
                 COL_STATION_HEIGHT: int(match.group(4)),
                 COL_LAT: float(match.group(5)),
                 COL_LON: float(match.group(6)),
@@ -243,7 +241,7 @@ class DWDStations:
         else:
             return False
 
-    def _load_dwd_txt(self, filename: str) -> bool:
+    def _load_file(self, filename: str) -> bool:
         """
          Loads data from a DWD station text file specified by the filename into the DataFrame. This method reads
          station IDs and parameters from the file, checks if these exist in the DataFrame, and then updates or
@@ -278,16 +276,20 @@ class DWDStations:
                   + Style.RESET_ALL)
             return False
 
+        # read file as text - from beginning
         start_date = _read_min_date(filename)
+        # read file as byte - from the end
         end_date = _read_max_date(filename)
 
-        # Check whether a parameter is already set for this StationId
+        # Check if a parameter is already set for this StationId - used to load mutliple datasets
+        # for example: load station for temperatur and cloud coverage
+        # dataset cloud coverage extended the dataset for temperatur
         if self.df.at[row_index[0], COL_PARAM]:
             # If yes, copy the line for each additional parameter
             for param in params:
-                new_row = self.df.loc[row_index[0]].copy()
                 if self.df.loc[self.df[COL_STATION_ID] == a_id, COL_PARAM].isin([param]).any():
                     continue
+                new_row = self.df.loc[row_index[0]].copy()
                 new_row[COL_PARAM] = param
                 new_row[COL_DWD_FILENAME] = filename
                 self.df.loc[len(self.df)] = new_row
@@ -420,6 +422,7 @@ def _read_max_date(filename: str) -> datetime:
                 # reset temp var
                 line = ''
             else:
+                # convert byte to char
                 line += next_char.decode()
             position -= 1
     return datetime(1970, 1, 1)
@@ -444,11 +447,15 @@ def read_file_to_df(filename: str) -> DataFrame:
     consistency with further data handling conventions. Additionally, this function initially prepares to parse date
     columns, though the actual parsing may be commented out or handled later depending on data structure or needs.
     """
-    df = pd.read_csv(filename, sep=';', header=None)
+    df = pd.read_csv(filename, sep=';', header=None, low_memory=False)
     # remove empty spaces in headers
     header = df.iloc[0].apply(lambda x: x.strip())
     df.columns = header
+    # remove first line - contains headers
     df = df.drop(0)
+    # remove last column - end of row sign
+    if "eor" in df.columns:
+        df.drop(columns=["eor"], inplace=True)
     # parse datetime column
     df.rename(columns={"MESS_DATUM": COL_DATE, "STATIONS_ID": COL_STATION_ID}, inplace=True)
     # df[COL_DATE] = pd.to_datetime(df[COL_DATE], format="%Y%m%d%H")
@@ -550,25 +557,3 @@ def _read_id(filename: str) -> int:
         if not second_line:
             return -1
         return gFunc.int_def(second_line.split(";")[0], -1)
-
-# TODO: automatische Tets schreiben
-# dwdv2 = DWDStations()
-# dwdv2.load_folder("..\\DWD_Downloader\\WeatherStations\\")
-# print(dwdv2.df[COL_DWD_PARAM].unique())
-# print(dwdv2.df.head())
-# print(dwdv2.df.columns)
-# print(dwdv2.df .columns)
-# print(dwdv2.get_dwd_value(datetime(2023, 12, 24, 00), 52.9437, 12.8518, False, ["V_N", "abc"]))
-# print(dwdv2.get_dwd_value(datetime(2023, 12, 24, 00), 52.9437, 12.8518, True, ["V_N", "abc"]))
-# print(dwdv2.get_dwd_value(datetime(2023, 12, 24, 00), 52.9437, 12.8518, True))
-# print(dwdv2.get_dwd_value(datetime(2023, 12, 24, 00), 52.9437, 12.8518, False))
-# print(dwdv2.get_unloaded_stations())
-# print(dwdv2.get_stations())
-# print(dwdv2.get_stations((52.943, 53.95), (12.85, 12.86)))
-# print(dwdv2.get_station(52.9437, 12.8518))
-# print(dwdv2.datetime_in_range(datetime(2022, 6, 26, 00), 52.9437, 12.8518))
-# print(dwdv2.datetime_in_range(datetime(2025, 6, 26, 00), 52.9437, 12.8518))
-# print(dwdv2.get_station_locations())
-# dates = [datetime(2022, 6, 26, 00, 15), datetime(2022, 6, 26, 00, 45)]
-# print(dwdv2.get_dwd_multiple_values(dates, 52.9437, 12.8518, False, ["V_N", "abc"]))
-# print(dwdv2.get_dwd_value(datetime(2022, 6, 26, 00, 45), 52.9437, 12.8518, False, ["V_N"]))

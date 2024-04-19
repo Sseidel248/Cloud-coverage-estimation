@@ -88,6 +88,33 @@ class Grib2Datas:
 
         :param path: The path to the folder containing .bz2 archives and .grib2 files. It's checked for existence, and
         operations are performed within it.
+
+        - The attributes `df` and `df_invalid` have the following columns at the end of the function
+
+            - `COL_MODEL` (string): Contains the name for the loaded model
+            - `COL_PARAM` (string): Contains the name for the parameter found in the Grib2 file
+            - `COL_DATE` (datetime): Contains the start date of the Grib2 file
+            - `COL_MODEL_FCST_MIN` (int): Contains the Forecast minutes
+            - `COL_MODEL_FCST_DATE` (datetime): Contains the start date + forecast minutes
+            - `COL_MODEL_FILENAME` (string): Contains the Path to the Grib2 file
+
+        - The attributes `df_models` has the following columns at the end of the function
+
+            - `COL_MODEL` (string): Contains the name for the loaded model
+            - `COL_PARAM` (string): Contains the name for the parameter found in the Grib2 file
+            - `COL_MODEL_LAT_START` (float): Contains the latitude at which the model starts [°]
+            - `COL_MODEL_LAT_END` (float): Contains the latitude at which the model ends [°]
+            - `COL_MODEL_LON_START` (float): Contains the longitude at which the model starts [°]
+            - `COL_MODEL_LON_END` (float): Contains the longitude at which the model ends [°]
+            - `COL_MODEL_LATLON_DELTA` (float): Contains the increment of the model [°]
+
+        - The constants are located in `IOConst.py`
+
+        Example usage:
+
+        `grib2datas = Grib2Datas()`
+
+        `grib2datas.load_folder("/path/to/grib2_files")`
         """
         if not os.path.exists(path):
             raise FileNotFoundError(f"Folder: '{path}' not exist.")
@@ -122,16 +149,20 @@ class Grib2Datas:
         :returns: A pandas DataFrame containing the fetched data, structured with columns for dates, forecast dates,
         forecast minutes, latitudes, longitudes, and the specified parameter values.
 
-        The method performs several key steps:
-        - Validates and reshapes the input data for date_times and coords to conform to expected dimensions.
-        - Rounds date_times to the nearest hour and finds the closest available date in the dataset.
-        - Converts coordinates into a standard format.
-        - Fetches the corresponding data for each unique date-time and coordinate pair, executing external commands if
-          necessary and parsing the output.
-        - Compiles and returns the results in a structured DataFrame.
+        :raise ValueError: if the dimensions of the input arrays are incompatible or if both date_times and coords have
+        more than one dimension but not matching lengths.
 
-        Raises a ValueError if the dimensions of the input arrays are incompatible or if both date_times and coords have
-          more than one dimension but not matching lengths.
+        Note:
+
+        The output DataFrame has the following columns:
+            - `COL_DATE` (datetime): Contains the date searched for
+            - `COL_MODEL_FCST_DATE` (datetime): Contains the date used, for the search the date of receipt was rounded to the full hour
+            - `COL_MODEL_FCST_MIN` (Int): Contains the forecast minutes
+            - `COL_LAT` (Float): Contains the latitude searched for
+            - `COL_LON` (Float): Contains the longitude searched for
+            - `<Param>` (Float): Contains the value of the parameter for the date and position searched for
+
+        The parameter `<Param>` changes depending on which parameter the grib2 file contains.
         """
 
         def get_width_len(arr: NDArray) -> Tuple[int, int]:
@@ -167,15 +198,20 @@ class Grib2Datas:
         # Prepare vectorize functions - performance by numpy
         np_date_round_func = np.vectorize(gFunc.round_to_nearest_hour)
         np_date_times_series = pd.Series(np_date_times.flatten())
+        # round Datetimes to nearst hour
         np_date_times = np_date_round_func(np_date_times)
+        # drop duplicates
         unique_date_times = np.unique(np_date_times)
         np_closest_grib2_date = np.vectorize(self._get_closest_date)
+        # compare grib2 dates und date_times and collect closest dates to load the right file
         unique_date_times = np_closest_grib2_date(unique_date_times)
         np_conv_coords_func = np.vectorize(gFunc.convert_in_0_360)
+        # convert the coordinate in range 0 to 360 degree
         np_coords = np_conv_coords_func(np_coords)
+        # round to 8 decimals
         np_coords = np.round(np_coords, 8)
 
-        # define the return DatFrame
+        # define the return DataFrame
         cols = [COL_DATE, COL_MODEL_FCST_DATE, COL_MODEL_FCST_MIN, COL_LAT, COL_LON, param]
         lat_values, lon_values, value_values, datetimes, fcst_datetimes, fcst_min_values = [], [], [], [], [], []
         values: DataFrame = DataFrame(columns=cols)
@@ -255,6 +291,18 @@ class Grib2Datas:
         based on the retrieved values and their distances. The resulting DataFrame contains the original date-times,
         coordinates, and interpolated parameter values.
 
+        Note:
+
+        The output DataFrame has the following columns:
+            - `COL_DATE` (datetime): Contains the date searched for
+            - `COL_MODEL_FCST_DATE` (datetime): Contains the date used, for the search the date of receipt was rounded
+              to the full hour
+            - `COL_MODEL_FCST_MIN` (Int): Contains the forecast minutes
+            - `COL_LAT` (Float): Contains the latitude searched for
+            - `COL_LON` (Float): Contains the longitude searched for
+            - `<Param>` (Float): Contains the value of the parameter calculated with the inverse distance weighting (IDW)
+              for the date searched for and the specified position within a certain radius.
+
         :raises ValueError: If input dimensions or types are not as expected, or if any other input validations fail.
         """
 
@@ -269,36 +317,46 @@ class Grib2Datas:
             # return idw values
             return weighted_sum / weights_sum
 
-        tmp, _ = _create_coords_in_radius(1, 1, radius, 0.02)
-        len_idw_dataset = len(tmp)
+        if model == MODEL_ICON_D2:
+            delta = 0.02
+        elif model == MODEL_ICON_EU:
+            delta = 0.0625
+        else:
+            delta = 0.02
+
         if not isinstance(coords, list):
             coords = [coords]
 
         idw_coords = []
         idw_distances = []
         for lat, lon in coords:
-            area, distances = _create_coords_in_radius(lat, lon, radius, 0.02)
+            area, distances = _create_coords_in_radius(lat, lon, radius, delta)
             idw_coords += area
             idw_distances += distances
         # Calculate all param values
-        df = self.get_values(model, param, date_times, idw_coords)
+        values = self.get_values(model, param, date_times, idw_coords)
+        # get number of each idw points
+        num_same_idw_calc = len(_create_coords_in_radius(1, 1, radius, delta)[0])
         # Calculate idw distance and idw values
-        df["idw_id"] = df.index // len_idw_dataset
-        df["distances"] = idw_distances
-        idw_values = df.groupby("idw_id").apply(idw, dist_col="distances", value_col=param)
+        values["idw_id"] = values.index // num_same_idw_calc
+        values["distances"] = idw_distances
+        idw_values = values.groupby("idw_id").apply(idw, dist_col="distances", value_col=param)
         # Assignment of values
-        df.drop_duplicates(subset="idw_id", inplace=True)
+        values.drop_duplicates(subset="idw_id", inplace=True)
         lats, lons = [], []
         for lat, lon in coords:
             lats.append(lat)
             lons.append(lon)
-        df[COL_LAT] = lats
-        df[COL_LON] = lons
-        df[param] = idw_values.values
+        values[COL_LAT] = lats
+        values[COL_LON] = lons
+        if len(idw_values.values) == 0:
+            values[param] = -1
+        else:
+            values[param] = idw_values.values
         # drop temporary cols
-        df.reset_index(drop=True, inplace=True)
-        df.drop(["idw_id", "distances"], axis=1, inplace=True)
-        return df
+        values.reset_index(drop=True, inplace=True)
+        values.drop(["idw_id", "distances"], axis=1, inplace=True)
+        return values
 
     def _get_closest_date(self, date_time: datetime) -> datetime:
         """
@@ -318,7 +376,9 @@ class Grib2Datas:
         'COL_MODEL_FCST_DATE' that contains datetime objects.
         """
         differences = (self.df[COL_MODEL_FCST_DATE] - date_time).abs()
+        # Find the index of the nearest date
         closest_date_index = differences.idxmin()
+        # Return the Entry in Column COL_MODEL_FCST_DATE at Rowindex = closest_date_index
         return self.df.loc[closest_date_index, COL_MODEL_FCST_DATE]
 
     def _data_validation(self):
@@ -343,7 +403,7 @@ class Grib2Datas:
         self.df = self.df[self.df[COL_MODEL_FCST_MIN] <= 120]
         self.df_models = self.df_models.drop_duplicates()
 
-    def _load_file(self, work_file: str):
+    def _load_file(self, filename: str):
         """
         Processes a single weather forecast file, extracting and storing relevant forecast data.
 
@@ -352,12 +412,11 @@ class Grib2Datas:
         minutes, model parameters, and coordinates. The extracted data is then added as a new row to the class's main
         dataframe and the model-specific dataframe.
 
-        :param work_file: The path to the .grib2 file to be processed.
+        :param filename: The path to the .grib2 file to be processed.
 
-        Effects:
-        - Extracts forecast information from the file, including the forecast model, date, forecast minutes, and
-          geographic coordinates.
-        - Adds a new row with the extracted data to both `self.df` and `self.df_models` dataframes.
+        - Extracts forecast information from the file, including the forecast model, date, forecast minutes,
+          and geographic coordinates
+        - Adds a new row with the extracted data to both `self.df` and `self.df_models` dataframes
 
         Note:
         This method assumes the presence of a predefined pattern (PATTERN) to parse the command output and relies
@@ -365,10 +424,10 @@ class Grib2Datas:
         processed file.
         """
 
-        command: str = f"{_WGRIB2_EXE} {work_file} -s -grid"
+        command: str = f"{_WGRIB2_EXE} {filename} -s -grid"
         result = subprocess.run(command, capture_output=True, text=True)
         if LAT_LON in result.stdout:
-            match = re.search(PATTERN, result.stdout)
+            match = re.search(MODEL_PATTERN, result.stdout)
             if match:
                 # index 0 = full match of complete string
                 date: datetime = datetime.strptime(match.group(1), "%Y%m%d%H")
@@ -391,8 +450,9 @@ class Grib2Datas:
                     COL_MODEL_LATLON_DELTA: float(match.group(5)),
                     COL_MODEL_LON_START: gFunc.convert_in_180_180(float(match.group(6))),
                     COL_MODEL_LON_END: gFunc.convert_in_180_180(float(match.group(7))),
-                    COL_MODEL_FILENAME: work_file
+                    COL_MODEL_FILENAME: filename
                 }
+                # Fill the DataFrames according to the column definition of the init function.
                 self.df.loc[len(self.df)] = new_row
                 self.df_models.loc[len(self.df_models)] = new_row
 
@@ -452,12 +512,12 @@ def _get_model(delta: float) -> str:
     The method currently supports specific delta values for predefined models. Other delta values will default
     to a known 'unknown' model identifier.
     """
-    model: str = MODEL_UNKNOWN
     if delta == 0.02:
-        model = MODEL_ICON_D2
+        return MODEL_ICON_D2
     elif delta == 0.0625:
-        model = MODEL_ICON_EU
-    return model
+        return MODEL_ICON_EU
+    else:
+        return MODEL_UNKNOWN
 
 
 def _extract_bz2_archives(bz2_archives: List[str]):

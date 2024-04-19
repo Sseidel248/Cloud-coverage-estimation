@@ -84,7 +84,7 @@ class TestGrib2Reader(unittest.TestCase):
                              (54.4, 11.2))
         self.assertEqual(0, len(df0))
 
-        # one datetime one coordinate
+        # one datetime one coordinate - Model ICON-D2
         df1 = g2d.get_values("ICON-D2",
                              "TCDC",
                              datetime(2023, 11, 29, 18),
@@ -120,56 +120,42 @@ class TestGrib2Reader(unittest.TestCase):
     def test_get_values_idw(self):
         g2d = Grib2Datas()
         g2d.load_folder(tc.TEST_DIR_GRIB2)
+        # Model ICON-D2
         df1 = g2d.get_values_idw("ICON-D2",
                                  "TCDC",
                                  datetime(2023, 11, 29, 17, 45),
                                  [(54.4, 11.2)],
                                  0.04)
         self.assertEqual(98.97459998987652, df1["TCDC"].iloc[0])
+
+        # Model ICON-EU
+        df2 = g2d.get_values_idw("ICON-EU",
+                                 "TCDC",
+                                 datetime(2023, 11, 29, 17, 45),
+                                 [(54.4, 11.2)],
+                                 0.04)
+        self.assertEqual(-1, df2["TCDC"].iloc[0])  # no ICON-EU Files Found
+
+        # Model unknown
+        df3 = g2d.get_values_idw("ICON",
+                                 "TCDC",
+                                 datetime(2023, 11, 29, 17, 45),
+                                 [(54.4, 11.2)],
+                                 0.04)
+        self.assertEqual(-1, df3["TCDC"].iloc[0])  # no ICON Files found
+
         # coords as one tuple
-        df2 = g2d.get_values_idw("ICON-D2",
+        df4 = g2d.get_values_idw("ICON-D2",
                                  "TCDC",
                                  datetime(2023, 11, 29, 17, 45),
                                  (54.4, 11.2),
                                  0.04)
-        self.assertEqual(98.97459962525065, df2["TCDC"].iloc[0])
+        self.assertEqual(98.97459998987652, df4["TCDC"].iloc[0])
 
-    # def test_count(self):
-    #     g2d = Grib2Datas()
-    #     g2d.load_folder(tc.TEST_DIR_GRIB2)
-    #     self.assertEqual(2, g2d.count())
-    #
-    # def test_get_used_datetimes(self):
-    #     g2d = Grib2Datas()
-    #     g2d.load_folder(tc.TEST_DIR_GRIB2)
-    #     self.assertEqual(1, len(g2d.get_used_datetimes(MODEL_ICON_D2)))
-    #     self.assertEqual(1, len(g2d.get_used_datetimes(MODEL_ICON_EU)))
-    #
-    # def test_exist_datetime(self):
-    #     g2d = Grib2Datas()
-    #     g2d.load_folder(tc.TEST_DIR_GRIB2)
-    #     self.assertTrue(g2d.exist_datetime(datetime(2023, 11, 29, 13)))
-    #     self.assertFalse(g2d.exist_datetime(datetime(2023, 11, 29, 13), MODEL_ICON_D2))
-    #     self.assertTrue(g2d.exist_datetime(datetime(2023, 11, 29, 13), MODEL_ICON_EU))
-    #
-    # def test_get_value(self):
-    #     g2d = Grib2Datas()
-    #     g2d.load_folder(tc.TEST_DIR_GRIB2)
-    #     self.assertEqual(100, g2d.get_value(MODEL_ICON_D2,
-    #                                         CLOUD_COVER,
-    #                                         datetime(2023, 11, 29, 14),
-    #                                         53,
-    #                                         13))
-    #
-    # def test_get_multiple_values(self):
-    #     g2d = Grib2Datas()
-    #     g2d.load_folder(tc.TEST_DIR_GRIB2)
-    #     df = g2d.get_multiple_values(MODEL_ICON_D2,
-    #                                  CLOUD_COVER,
-    #                                  datetime(2023, 11, 29, 14),
-    #                                  [(53, 13), (55, 15)])
-    #     self.assertEqual(2, len(df))
-    #     self.assertEqual(100, df[COL_MODEL_VALUE].iloc[0])
-    #     self.assertEqual(100, df[COL_MODEL_VALUE].iloc[1])
-
-# TODO: automatische Test weitermachen
+        # one datetime and twi coords
+        df5 = g2d.get_values_idw("ICON-D2",
+                                 "TCDC",
+                                 datetime(2023, 11, 29, 17, 45),
+                                 [(54.4, 11.2), (53.4, 12.2)],
+                                 0.04)
+        self.assertEqual(98.97459998987652, df5["TCDC"].iloc[0])

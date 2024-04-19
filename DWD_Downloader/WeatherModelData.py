@@ -30,7 +30,6 @@ HTML_ICON_D2 = "icon-d2"
 HTML_ICON_EU = "icon-eu"
 
 
-# TODO: Insert DocStrings for public functions ("""Descriptive text""") under the function name
 def _create_modeldata(url: str, file: str, target_path: str) -> htmlGrab.DownloadData:
     """
     Creates and returns a DownloadData object based on the given URL, file name, and target path.

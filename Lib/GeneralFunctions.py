@@ -74,8 +74,10 @@ def round_to_nearest_hour(date_time):
         minutes = date_time_in_minutes.astype(int) % 60
         if minutes >= 30:
             date_time_in_minutes += np.timedelta64(60 - minutes, "m")
-        rounded_date = date_time_in_minutes - np.timedelta64(minutes, "m")
-        return rounded_date.astype("datetime64[h]")
+        else:
+            date_time_in_minutes -= np.timedelta64(minutes, "m")
+        # rounded_date = date_time_in_minutes - np.timedelta64(minutes, "m")
+        return date_time_in_minutes.astype("datetime64[h]")
     else:
         raise TypeError("Unsupported type. Only datetime.datetime and numpy.datetime64 are supported.")
 

@@ -19,7 +19,6 @@ from typing import List
 from tqdm import tqdm
 
 
-# TODO: Einfügen von DocStrings ("""Beschreibender Text""") unter dem Funktionsname
 class DownloadData:
     """
     This class is designed for managing the downloading of files from a specified URL to a local path.
@@ -57,7 +56,6 @@ def get_html_links_as_list(url_html: str) -> List[str]:
         soup = BeautifulSoup(response.text, 'html.parser')
         # Find all links in the page
         links = soup.find_all('a')
-        # Initialize an empty list to store the texts of the links
         # Iterate through the links found and extract the text
         for link in links:
             href = link.get("href")

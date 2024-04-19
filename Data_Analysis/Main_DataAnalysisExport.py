@@ -87,18 +87,16 @@ def combine_datas(dwd_datas: DWDStations,
           and are identical, and it uses these along with latitude and longitude for merging datasets.
     """
     coords = dwd_datas.get_station_locations()
+    coords_list = list(zip(coords[COL_LAT], coords[COL_LON]))
     model_dates = model_datas.df[COL_MODEL_FCST_DATE].tolist()
 
     if use_all_params:
         dwd_param_list = None
 
     temp_dfs = []
-    coords_list = []
-    for row in tqdm(coords.itertuples(index=False), total=len(coords), desc="Processing DWD-Values"):
-        lat, lon = row.Lat, row.Lon
+    for lat, lon in tqdm(coords_list, total=len(coords_list), desc="Processing DWD-Values"):
         temp_df = dwd_datas.get_values(model_dates, lat, lon, use_all_params, dwd_param_list)
         temp_dfs.append(temp_df)
-        coords_list.append((lat, lon))
     vals_dwd = pd.concat(temp_dfs, ignore_index=True)
 
     temp_dfs.clear()
@@ -381,9 +379,9 @@ grib2_datas.load_folder(grib2_path)
 # init dwd txt files
 dwds = DWDStations()
 dwds.load_folder(dwd_path)
-dwd_solar = DWDStations()
 
 # Export Solar-Stationlocations with filterfile
+dwd_solar = DWDStations()
 dwd_solar.load_folder(os.path.join(dwd_path, "solar"))
 export_solar_dwd = dwd_solar.df[[COL_STATION_ID, COL_LAT, COL_LON]].drop_duplicates(COL_STATION_ID)
 useful_solar_station = load_pkl(f".\\datas\\radiationStations.pkl")
