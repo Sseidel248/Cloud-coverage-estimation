@@ -1,13 +1,13 @@
 """
 General Information:
 ______
-- File name:      Main_DataAnalysisPlot.py
+- File name:      Main_Data_Evaluation.py
 - Author:         Sebastian Seidel
 - Date:           2024.04.10
 
 Description:
 ______
-The generated export files ('.csv' or '.pkl') from Main_DataAnalysisExport.py are loaded and analyzed
+The generated export files ('.csv' or '.pkl') from Main_Data_Processing.py are loaded and analyzed
 here. After the evaluation and analysis, graphics are saved in addition to textual results.
 """
 import os
@@ -900,15 +900,17 @@ def load(filename: str) -> DataFrame:
 # Initialisation
 show_plot = False
 dwd_params = ["V_N", "V_N_I", "D", "F", "RF_TU", "TT_TU", "P", "P0"]
+if not os.path.exists(f".\\plots"):
+    os.mkdir(f".\\plots")
 
 # Loading CSV-Files
 # df_d2_cloud_only = load(CSV_NAME_ICON_D2)
 # df_eu_cloud_only = load(CSV_NAME_ICON_EU)
-df_d2_full = load(f".\\datas\\all_param_data_ICON_D2.csv")
+df_d2_full = load(f"..\\Data_Processing\\datas\\all_param_data_ICON_D2.csv")
 df_d2_cloud_only = _drop_param(df_d2_full, ["D", "F", "RF_TU", "TT_TU", "P", "P0"])
-df_eu_full = load(f".\\datas\\all_param_data_ICON_EU.csv")
+df_eu_full = load(f"..\\Data_Processing\\datas\\all_param_data_ICON_EU.csv")
 df_eu_cloud_only = _drop_param(df_eu_full, ["D", "F", "RF_TU", "TT_TU", "P", "P0"])
-df_dwd_solar = load(f".\\datas\\solar_DWD_Stationlocations.csv")
+df_dwd_solar = load(f"..\\Data_Processing\\datas\\solar_DWD_Stationlocations.csv")
 
 # Show all used DWD-Locations
 make_scatterplot_dwd_locations(df_d2_cloud_only, show_plot, f".\\plots\\ScatPlt_Verwendete_DWD-Stationen.svg")
@@ -939,12 +941,12 @@ compare_fcst_error(df_eu_cloud_only, MODEL_ICON_EU, show_plot,
 show_used_areas_dwd_stations(df_d2_cloud_only, show_plot, f".\\plots\\ScatPlt_DWD_Station_Cloud_Coverage.svg")
 
 # Show Weather example plot
-make_scatterplots_cloud_coverage(f".\\datas\\Area_I_ICON-D2.csv",
-                                 f".\\datas\\Area_I_ICON-EU.csv",
-                                 f".\\datas\\DWD-Stations_in_Area_I_ICON-D2.csv",
-                                 f".\\datas\\Area_II_ICON-D2.csv",
-                                 f".\\datas\\Area_II_ICON-EU.csv",
-                                 f".\\datas\\DWD-Stations_in_Area_II_ICON-D2.csv",
+make_scatterplots_cloud_coverage(f"..\\Data_Processing\\datas\\Area_I_ICON-D2.csv",
+                                 f"..\\Data_Processing\\datas\\Area_I_ICON-EU.csv",
+                                 f"..\\Data_Processing\\datas\\DWD-Stations_in_Area_I_ICON-D2.csv",
+                                 f"..\\Data_Processing\\datas\\Area_II_ICON-D2.csv",
+                                 f"..\\Data_Processing\\datas\\Area_II_ICON-EU.csv",
+                                 f"..\\Data_Processing\\datas\\DWD-Stations_in_Area_II_ICON-D2.csv",
                                  show_plot,
                                  f".\\plots\\ScatPlt_Cloud_Coverage_Compare_ICON-D2_ICON-EU.png")
 
@@ -1029,7 +1031,7 @@ print(f"\nFehler: Personenmessung")
 show_me_mae_rmse(v_n_i_df[v_n_i_df["V_N_I"] == "P"], "TCDC", "V_N")
 
 # calculate DWD-Station locations with idw radius von 0.04°
-df_d2_idw_cloud_only = load(f".\\datas\\idw_data_ICON_D2.csv")
+df_d2_idw_cloud_only = load(f"..\\Data_Processing\\datas\\idw_data_ICON_D2.csv")
 da.calc_abs_error(df_d2_idw_cloud_only, "TCDC", "V_N")
 make_compare_violinplt(df_d2_cloud_only, "ICON-D2", df_d2_idw_cloud_only, "ICON-D2 mit IDW", show_plot,
                        f".\\plots\\VioPlt_MAE_Vergleich_ICON_D2_mit_ohne_IDW.svg")

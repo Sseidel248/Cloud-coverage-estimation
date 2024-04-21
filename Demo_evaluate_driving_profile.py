@@ -15,7 +15,7 @@ import Lib.IOConsts as ioc
 
 g2r = Grib2Datas()
 # choose the folde with the grib2 files of DWD forecast model
-g2r.load_folder(".\\DWD_Downloader\\WeatherData\\icon-d2")
+g2r.load_folder(".\\Data_Downloader\\WeatherData\\icon-d2")
 # Csv-file must contain following columns: datetime_UTC, lat, lon
 car_profile = pd.read_csv("example_driving_profile.csv")
 # Specify formatting of the date string

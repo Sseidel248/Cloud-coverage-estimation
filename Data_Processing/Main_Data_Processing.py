@@ -1,7 +1,7 @@
 """
 General Information:
 ______
-- File name:      Main_DataAnalysisExport.py
+- File name:      Main_Data_Processing.py
 - Author:         Sebastian Seidel
 - Date:           2024.04.10
 
@@ -359,15 +359,17 @@ def load_pkl(filename: str) -> DataFrame:
 
 model: str = MODEL_ICON_D2
 param: str = CLOUD_COVER
-dwd_path: str = "..\\DWD_Downloader\\WeatherStations\\"
+dwd_path: str = "..\\Data_Downloader\\WeatherStations\\"
+if not os.path.exists(f".\\datas"):
+    os.mkdir(f".\\datas")
 
 if model == MODEL_ICON_D2:
     exportname: str = CSV_NAME_ICON_D2
-    grib2_path: str = "..\\DWD_Downloader\\WeatherData\\icon-d2"
+    grib2_path: str = "..\\Data_Downloader\\WeatherData/icon-d2"
     model_delta: float = ICON_D2_LAT_LON_DELTA
 elif model == MODEL_ICON_EU:
     exportname = CSV_NAME_ICON_EU
-    grib2_path: str = "..\\DWD_Downloader\\WeatherData\\icon-eu"
+    grib2_path: str = "..\\Data_Downloader\\WeatherData/icon-eu"
     model_delta: float = ICON_EU_LAT_LON_DELTA
 else:
     raise ValueError(f"Model: '{model}' not exist")
@@ -381,13 +383,14 @@ dwds = DWDStations()
 dwds.load_folder(dwd_path)
 
 # Export Solar-Stationlocations with filterfile
-dwd_solar = DWDStations()
-dwd_solar.load_folder(os.path.join(dwd_path, "solar"))
-export_solar_dwd = dwd_solar.df[[COL_STATION_ID, COL_LAT, COL_LON]].drop_duplicates(COL_STATION_ID)
-useful_solar_station = load_pkl(f".\\datas\\radiationStations.pkl")
-filter_mask = export_solar_dwd[COL_STATION_ID].isin(useful_solar_station.iloc[:, 0])
-export_solar_dwd = export_solar_dwd[filter_mask]
-export_to_csv(export_solar_dwd, f".\\datas\\solar_DWD_Stationlocations.csv")
+if os.path.exists(f".\\datas\\radiationStations.pkl"):
+    dwd_solar = DWDStations()
+    dwd_solar.load_folder(os.path.join(dwd_path, "solar"))
+    export_solar_dwd = dwd_solar.df[[COL_STATION_ID, COL_LAT, COL_LON]].drop_duplicates(COL_STATION_ID)
+    useful_solar_station = load_pkl(f".\\datas\\radiationStations.pkl")
+    filter_mask = export_solar_dwd[COL_STATION_ID].isin(useful_solar_station.iloc[:, 0])
+    export_solar_dwd = export_solar_dwd[filter_mask]
+    export_to_csv(export_solar_dwd, f".\\datas\\solar_DWD_Stationlocations.csv")
 
 # combine dwd and grib2 datas
 dwd_params = ["V_N", "V_N_I"]

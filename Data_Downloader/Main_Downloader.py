@@ -61,28 +61,28 @@ show_number_of_files(len(download_urls_eu))
 if download_measuring_station:
     # Download current measured values from the measuring stations - Cloudiness
     show_start_message("Cloudiness (Measuring stations)")
-    download_urls_stations_cloudiness = get_dwd_html_links("cloudiness/", "WeatherStations/")
+    download_urls_stations_cloudiness = get_dwd_html_links("cloudiness/", ".\\WeatherStations")
     download_data(download_urls_stations_cloudiness)
     show_number_of_files(len(download_urls_stations_cloudiness))
 
     show_start_message("Wind (Measuring stations)")
-    download_urls_stations_cloud_type = get_dwd_html_links("wind/", "WeatherStations/")
+    download_urls_stations_cloud_type = get_dwd_html_links("wind/", ".\\WeatherStations")
     download_data(download_urls_stations_cloud_type)
     show_number_of_files(len(download_urls_stations_cloud_type))
 
     show_start_message("air_temperature (Measuring stations)")
-    download_urls_stations_cloud_type = get_dwd_html_links("air_temperature/", "WeatherStations/")
+    download_urls_stations_cloud_type = get_dwd_html_links("air_temperature/", ".\\WeatherStations")
     download_data(download_urls_stations_cloud_type)
     show_number_of_files(len(download_urls_stations_cloud_type))
 
     show_start_message("pressure (Measuring stations)")
-    download_urls_stations_cloud_type = get_dwd_html_links("pressure/", "WeatherStations/")
+    download_urls_stations_cloud_type = get_dwd_html_links("pressure/", ".\\WeatherStations")
     download_data(download_urls_stations_cloud_type)
     show_number_of_files(len(download_urls_stations_cloud_type))
 
     show_start_message("solar (Measuring stations)")
     download_urls_stations_cloud_type = get_dwd_html_links("solar/",
-                                                           "WeatherStations/",
+                                                           ".\\WeatherStations",
                                                            "https://opendata.dwd.de/climate_environment/CDC"
                                                            "/observations_germany/climate/10_minutes/solar/recent/")
     download_data(download_urls_stations_cloud_type)

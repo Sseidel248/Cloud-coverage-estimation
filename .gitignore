@@ -24,8 +24,8 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
-DWD_Downloader/WeatherData
-DWD_Downloader/WeatherStations
+Data_Downloader/WeatherData
+Data_Downloader/WeatherStations
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -168,4 +168,4 @@ extracted_station_files
 *.png
 test
 *.mat
-DemoFileEditor
+Demo_File_Editor
