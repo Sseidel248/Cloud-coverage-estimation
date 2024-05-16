@@ -483,7 +483,7 @@ def make_compare_proportion_lineplt(df1: DataFrame,
     plt.xlabel("Differenz zu den Bewölkungsgraden des DWD")
     plt.xticks([0, 12.5, 25, 37.5, 50, 62.5, 75, 87.5, 100],
                ["0/8", "1/8", "2/8", "3/8", "4/8", "5/8", "6/8", "7/8", "8/8"])
-    plt.ylabel("Abweichung [%]")
+    plt.ylabel("Prozentualer Anteil [%]")
     _show_and_export(plt, show, exportname)
 
 
