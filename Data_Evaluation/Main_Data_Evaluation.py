@@ -478,9 +478,9 @@ def make_compare_proportion_lineplt(df1: DataFrame,
     plt.legend()
     plt.grid()
     plt.title("Prozentualer Anteil der Daten basierend "
-              "\nauf dem absoluten Fehler des Bewölkungsgrads der DWD-Stationen",
+              "\nauf dem absoluten Fehler des Bedeckungsgrads der DWD-Stationen",
               fontweight="bold")
-    plt.xlabel("Differenz zu den Bewölkungsgraden des DWD")
+    plt.xlabel("Differenz zu den Bedeckungsgraden des DWD")
     plt.xticks([0, 12.5, 25, 37.5, 50, 62.5, 75, 87.5, 100],
                ["0/8", "1/8", "2/8", "3/8", "4/8", "5/8", "6/8", "7/8", "8/8"])
     plt.ylabel("Prozentualer Anteil [%]")
@@ -526,7 +526,7 @@ def show_error_metrics(df: DataFrame, model: str, show: bool = True, max_y_lim: 
               f"Verteilung des MAE von {model} zu den DWD-Stationen\n(Anzahl DWD-Stationen: {len(stations_info)})",
               f"Anzahl DWD-Stationen",
               f"MAE vom Bedeckungsgrad [%]",
-              30,
+              40,
               show,
               f".\\plots\\HistPlt_Verteilung_MAE_{model}_DWD_Stationen.svg",
               color_value_above=12.5)
@@ -613,6 +613,7 @@ def make_scatterplot_dwd_locations(df: DataFrame,
             COL_LON: "first",
             COL_ABS_ERROR: "mean"
         }).reset_index()
+        df_data.dropna(inplace=True)
     else:
         df_data = df.groupby(COL_STATION_ID).agg({
             COL_LAT: "first",
@@ -892,7 +893,7 @@ def load(filename: str) -> DataFrame:
         raise FileExistsError
     filepath = Path(filename)
     if filepath.suffix == ".csv":
-        return pd.read_csv(filename, sep=";", decimal=",")
+        return pd.read_csv(filename, sep=";", decimal=",", low_memory=False)
     else:
         raise ValueError("Unsupported file extension. Only *.csv are supported.")
 
@@ -924,8 +925,8 @@ make_scatterplot_dwd_locs_compare(df_d2_cloud_only, df_dwd_solar, show_plot,
 # Calculate Errors (RMSE, MAE, ME) and show it as text and as diagramm
 da.calc_abs_error(df_d2_cloud_only, "TCDC", "V_N")
 da.calc_abs_error(df_eu_cloud_only, "TCDC", "V_N")
-show_error_metrics(df_d2_cloud_only, MODEL_ICON_D2, show_plot, 30000)
-show_error_metrics(df_eu_cloud_only, MODEL_ICON_EU, show_plot, 30000)
+show_error_metrics(df_d2_cloud_only, MODEL_ICON_D2, show_plot, 350000)
+show_error_metrics(df_eu_cloud_only, MODEL_ICON_EU, show_plot, 350000)
 make_compare_proportion_lineplt(df_d2_cloud_only,
                                 df_eu_cloud_only,
                                 show_plot,
@@ -955,11 +956,18 @@ make_compare_violinplt(df_d2_cloud_only, MODEL_ICON_D2, df_eu_cloud_only, MODEL_
                        f".\\plots\\VioPlt_MAE_Vergleich_ICON_D2_ICON_EU.svg")
 
 # Show difference between MAE for each DWD-Station of ICON-D2 and ICON-EU
-df_diff = df_d2_cloud_only[[COL_STATION_ID, COL_LAT, COL_LON]].copy()
-df_diff[COL_ABS_ERROR] = abs(df_d2_cloud_only[COL_ABS_ERROR] - df_eu_cloud_only[COL_ABS_ERROR])
+df_merged = pd.merge(
+    df_d2_cloud_only,
+    df_eu_cloud_only,
+    on=[COL_STATION_ID, COL_LAT, COL_LON, COL_DATE],
+    suffixes=('_d2', '_eu')
+)
+df_merged[COL_ABS_ERROR] = abs(df_merged[f'{COL_ABS_ERROR}_d2'] - df_merged[f'{COL_ABS_ERROR}_eu'])
+result_columns = [COL_STATION_ID, COL_LAT, COL_LON, COL_DATE, COL_ABS_ERROR]
+df_diff = df_merged[result_columns]
 make_scatterplot_dwd_locations(df_diff, show_plot, f".\\plots\\ScatPlt_Diff_MAE_vergleich_ICON-D2_EU.svg",
                                MODEL_ICON_D2, True,
-                               "Differenz Fehlerbewölkungsgrad [%]",
+                               "Differenz abs. Fehler vom Bedeckungsgrad [%]",
                                "Verteilung der Fehlerdifferenzen von ICON-D2 und ICON-EU\n"
                                "bezogen auf die DWD-Stationen")
 
@@ -975,7 +983,7 @@ dwd_station_all_param = df_d2_full.dropna().copy()
 print(f"Anzahl der DWD-Stationen die alle Parameter messen: {len(dwd_station_all_param[COL_STATION_ID].unique())}")
 da.calc_abs_error(dwd_station_all_param, "TCDC", "V_N")
 
-show_num_of_station_for_param(df_d2_full, ["V_N_I", "D", "F", "RF_TU", "TT_TU", "P", "P0"], "Bewölkungsgrad (V_N)")
+show_num_of_station_for_param(df_d2_full, ["V_N_I", "D", "F", "RF_TU", "TT_TU", "P", "P0"], "Bedeckungsgrad (V_N)")
 v_n_i_df = df_d2_cloud_only.dropna()
 measurment_counts = v_n_i_df['V_N_I'].value_counts()
 print(f"    Davon wurden {measurment_counts['I'] / len(v_n_i_df) * 100:.2f} % durch ein Instrument aufgenommen.")
@@ -1021,10 +1029,10 @@ for dwd_param in dwd_params:
     coef, pvaluer = da.calc_corr_coef(pvalue, dwd_station_all_param, COL_ABS_ERROR, dwd_param)
     print_corr_results(pvalue, coef, pvaluer)
 
-print(f"\n~~~Vergleich Instrumentmessung und Personenmessung - Bewölkungsgrad~~~\n")
+print(f"\n~~~Vergleich Instrumentmessung und Personenmessung - Bedeckungsgrad~~~\n")
 print(
     f"Hier werden nur RMSE, MAE und ME betrachtet, da ein Zusammenhang zwischen TCDC und V_N definitiv bestehen würde,"
-    f" denn Beide beinhalten den Bewölkungsgrad.")
+    f" denn Beide beinhalten den Bedeckungsgrad.")
 print(f"\nFehler: Instrumentmessung")
 show_me_mae_rmse(v_n_i_df[v_n_i_df["V_N_I"] == "I"], "TCDC", "V_N")
 print(f"\nFehler: Personenmessung")

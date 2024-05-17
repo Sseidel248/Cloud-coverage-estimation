@@ -22,6 +22,7 @@ from pandas import DataFrame
 from tqdm import tqdm
 from datetime import datetime
 from pathlib import Path
+from colorama import Fore, Style
 
 
 def is_file_in_use(filepath: str) -> bool:
@@ -308,11 +309,16 @@ def export_cloud_area_csv(dwd_datas: DWDStations,
           a fixed date (24th January 2024, 12:00 pm) and exports the results to the specified filenames.
     """
     print("Create Area Data...")
-    calc_date = datetime(2024, 1, 24, 12)
+    dates = model_datas.df[COL_MODEL_FCST_DATE]
+    if dates.empty:
+        return print(Fore.YELLOW + f"\nNo weather model data has been loaded." + Style.RESET_ALL)
+    calc_date = dates.iloc[0]
+
     # get DWD-Locations and Values
     dwd_locs = dwd_datas.get_station_locations()
     dwd_area = dwd_locs[(dwd_locs[COL_LAT] >= start_lat) & (dwd_locs[COL_LAT] <= end_lat) &
                         (dwd_locs[COL_LON] >= start_lon) & (dwd_locs[COL_LON] <= end_lon)].copy()
+
     # init clou coverage values with Nan
     dwd_area["V_N"] = np.NaN
     for idx, row in dwd_area.iterrows():
@@ -324,6 +330,7 @@ def export_cloud_area_csv(dwd_datas: DWDStations,
             dwd_area.loc[idx, "V_N"] = float(tmp["V_N"].iloc[0])
     dwd_area.insert(0, COL_DATE, calc_date)
     dwd_area = data_postprocessing(dwd_area)
+    dwd_area.dropna(inplace=True)
     export_to_csv(dwd_area, exportname_dwd)
 
     # create Modeldata for area
@@ -365,11 +372,11 @@ if not os.path.exists(f".\\datas"):
 
 if model == MODEL_ICON_D2:
     exportname: str = CSV_NAME_ICON_D2
-    grib2_path: str = "..\\Data_Downloader\\WeatherData/icon-d2"
+    grib2_path: str = "..\\Data_Downloader\\WeatherData\\icon-d2"
     model_delta: float = ICON_D2_LAT_LON_DELTA
 elif model == MODEL_ICON_EU:
     exportname = CSV_NAME_ICON_EU
-    grib2_path: str = "..\\Data_Downloader\\WeatherData/icon-eu"
+    grib2_path: str = "..\\Data_Downloader\\WeatherData\\icon-eu"
     model_delta: float = ICON_EU_LAT_LON_DELTA
 else:
     raise ValueError(f"Model: '{model}' not exist")

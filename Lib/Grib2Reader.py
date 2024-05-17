@@ -541,7 +541,7 @@ def _extract_bz2_archives(bz2_archives: List[str]):
     if len(bz2_archives) == 0:
         return
     # Loop through each *.bz2 archive and unpack it
-    for archive in bz2_archives:
+    for archive in tqdm(bz2_archives, total=len(bz2_archives), desc="Extract Bz2-Files"):
         directory: str = os.path.dirname(archive)
         filename_body: str = os.path.splitext(os.path.basename(archive))[0]
         extracted_path: str = os.path.join(directory, filename_body)
