@@ -23,8 +23,8 @@ INIT_FILE_10_MIN_MARKER: str = "zehn_min_sd_Beschreibung"
 DATA_FILE_MARKER: str = "produkt_"
 
 # Export/Import filenames
-CSV_NAME_ICON_D2: str = "data_ICON_D2.csv"
-CSV_NAME_ICON_EU: str = "data_ICON_EU.csv"
+CSV_NAME_ICON_D2: str = "data_ICON-D2.csv"
+CSV_NAME_ICON_EU: str = "data_ICON-EU.csv"
 DELETE_BEFORE_START: bool = False
 
 # const dataframes

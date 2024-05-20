@@ -97,14 +97,17 @@ def combine_datas(dwd_datas: DWDStations,
     temp_dfs = []
     for lat, lon in tqdm(coords_list, total=len(coords_list), desc="Processing DWD-Values"):
         temp_df = dwd_datas.get_values(model_dates, lat, lon, use_all_params, dwd_param_list)
+        temp_df.dropna(axis=1, how="all", inplace=True)
         temp_dfs.append(temp_df)
     vals_dwd = pd.concat(temp_dfs, ignore_index=True)
 
     temp_dfs.clear()
     for date in tqdm(model_dates, total=len(model_dates), desc="Processing Model-Values"):
         temp_df = model_datas.get_values(model_str, model_param, date, coords_list)
+        temp_df.dropna(axis=1, how="all", inplace=True)
         temp_dfs.append(temp_df)
     vals_model = pd.concat(temp_dfs, ignore_index=True)
+
     # vals_model Date_UTC and Date_Fcst are identical, because both contains forecast datetime
     vals_dwd.sort_values(by=[COL_DATE, COL_LAT, COL_LON], inplace=True)
     vals_model.sort_values(by=[COL_DATE, COL_LAT, COL_LON], inplace=True)
@@ -115,7 +118,10 @@ def combine_datas(dwd_datas: DWDStations,
     # remove DWD's "eor" column if exist
     if "eor" in merged_df.columns:
         merged_df.drop(columns="eor", inplace=True)
-    print("Evaluate Data - finished")
+    if use_all_params:
+        print(f"~~~ Evaluate Data finished - {model_str} all params ~~~")
+    else:
+        print(f"~~~ Evaluate Data finished - {model_str} {dwd_param_list} ~~~")
     return merged_df
 
 
@@ -281,6 +287,7 @@ def create_coordinates_list(start_lat, end_lat, start_lon, end_lon, delta):
 
 def export_cloud_area_csv(dwd_datas: DWDStations,
                           model_datas: Grib2Datas,
+                          modelname: str,
                           start_lat: float,
                           end_lat: float,
                           start_lon: float,
@@ -296,6 +303,7 @@ def export_cloud_area_csv(dwd_datas: DWDStations,
 
     :param dwd_datas: An instance of DWDStations, containing DWD station data.
     :param model_datas: An instance of Grib2Datas, containing weather model data.
+    :param modelname: Name of the used model, for example: 'icon-d2'
     :param start_lat: The starting latitude of the area for which to export data.
     :param end_lat: The ending latitude of the area for which to export data.
     :param start_lon: The starting longitude of the area for which to export data.
@@ -306,38 +314,39 @@ def export_cloud_area_csv(dwd_datas: DWDStations,
 
     Note: The function performs data post-processing on the DWD station data before exporting it, including
           converting cloud coverage values to percentages and handling missing values. It calculates cloud coverage for
-          a fixed date (24th January 2024, 12:00 pm) and exports the results to the specified filenames.
+          a fixed date (3rd February 2024, 3:00 pm) and exports the results to the specified filenames.
     """
-    print("Create Area Data...")
-    dates = model_datas.df[COL_MODEL_FCST_DATE]
+    testdate = np.datetime64("2024-02-03T15:00:00")
+    dates = model_datas.df[model_datas.df[COL_MODEL_FCST_DATE] == testdate]
     if dates.empty:
-        return print(Fore.YELLOW + f"\nNo weather model data has been loaded." + Style.RESET_ALL)
-    calc_date = dates.iloc[0]
+        print(Fore.YELLOW + f"\nNo weather model data for {testdate}." + Style.RESET_ALL)
+        return
+    used_date = dates.iloc[0][COL_MODEL_FCST_DATE]
 
     # get DWD-Locations and Values
     dwd_locs = dwd_datas.get_station_locations()
     dwd_area = dwd_locs[(dwd_locs[COL_LAT] >= start_lat) & (dwd_locs[COL_LAT] <= end_lat) &
                         (dwd_locs[COL_LON] >= start_lon) & (dwd_locs[COL_LON] <= end_lon)].copy()
 
-    # init clou coverage values with Nan
+    # init cloud coverage values with Nan
     dwd_area["V_N"] = np.NaN
     for idx, row in dwd_area.iterrows():
         lat = row[COL_LAT]
         lon = row[COL_LON]
-        tmp = dwd_datas.get_values(calc_date, lat, lon, False, "V_N")
+        tmp = dwd_datas.get_values(used_date, lat, lon, False, "V_N")
         # override nan Value if cloud coverage value exist
         if "V_N" in tmp.columns:
             dwd_area.loc[idx, "V_N"] = float(tmp["V_N"].iloc[0])
-    dwd_area.insert(0, COL_DATE, calc_date)
+    dwd_area.insert(0, COL_DATE, used_date)
     dwd_area = data_postprocessing(dwd_area)
     dwd_area.dropna(inplace=True)
     export_to_csv(dwd_area, exportname_dwd)
 
     # create Modeldata for area
     view_area = create_coordinates_list(start_lat, end_lat, start_lon, end_lon, delta)
-    temp_df = model_datas.get_values(model,
-                                     param,
-                                     calc_date,
+    temp_df = model_datas.get_values(modelname,
+                                     CLOUD_COVER,
+                                     used_date,
                                      view_area)
     export_to_csv(temp_df, exportname_model)
 
@@ -364,33 +373,23 @@ def load_pkl(filename: str) -> DataFrame:
         raise ValueError("Unsupported file extension. Only *.pkl are supported.")
 
 
-model: str = MODEL_ICON_D2
+# Init some vars and dirs
 param: str = CLOUD_COVER
 dwd_path: str = "..\\Data_Downloader\\WeatherStations\\"
-if not os.path.exists(f".\\datas"):
-    os.mkdir(f".\\datas")
-
-if model == MODEL_ICON_D2:
-    exportname: str = CSV_NAME_ICON_D2
-    grib2_path: str = "..\\Data_Downloader\\WeatherData\\icon-d2"
-    model_delta: float = ICON_D2_LAT_LON_DELTA
-elif model == MODEL_ICON_EU:
-    exportname = CSV_NAME_ICON_EU
-    grib2_path: str = "..\\Data_Downloader\\WeatherData\\icon-eu"
-    model_delta: float = ICON_EU_LAT_LON_DELTA
-else:
-    raise ValueError(f"Model: '{model}' not exist")
-
-# init grib2 files
-grib2_datas = Grib2Datas()
-grib2_datas.load_folder(grib2_path)
+dwd_params = ["V_N", "V_N_I"]
 
 # init dwd txt files
+print(f"~~~ Loading - DWD Stations ~~~")
 dwds = DWDStations()
 dwds.load_folder(dwd_path)
 
+# check if target directory exist
+if not os.path.exists(f".\\datas"):
+    os.mkdir(f".\\datas")
+
 # Export Solar-Stationlocations with filterfile
 if os.path.exists(f".\\datas\\radiationStations.pkl"):
+    print(f"~~~ Processing - DWD Solarstations ~~~")
     dwd_solar = DWDStations()
     dwd_solar.load_folder(os.path.join(dwd_path, "solar"))
     export_solar_dwd = dwd_solar.df[[COL_STATION_ID, COL_LAT, COL_LON]].drop_duplicates(COL_STATION_ID)
@@ -399,30 +398,52 @@ if os.path.exists(f".\\datas\\radiationStations.pkl"):
     export_solar_dwd = export_solar_dwd[filter_mask]
     export_to_csv(export_solar_dwd, f".\\datas\\solar_DWD_Stationlocations.csv")
 
-# combine dwd and grib2 datas
-dwd_params = ["V_N", "V_N_I"]
-export_df = combine_datas(dwds, grib2_datas, model, param, False, dwd_params)
+models = [MODEL_ICON_D2, MODEL_ICON_EU]
 
-# contains all params
-export_all_param_df = combine_datas(dwds, grib2_datas, model, param, True)
+for model in models:
+    print(f"~~~ Processing - {model} ~~~")
+    exportname: str = f"data_{model}.csv"
+    grib2_path: str = f"..\\Data_Downloader\\WeatherData\\{model.lower()}"
+    if model == MODEL_ICON_D2:
+        model_delta: float = ICON_D2_LAT_LON_DELTA
+    elif model == MODEL_ICON_EU:
+        model_delta: float = ICON_EU_LAT_LON_DELTA
+    else:
+        raise ValueError("Unsupported Model. Only 'ICON-D2' and 'ICON-EU' are supported.")
 
-# Postprocessing readed datas
-export_df = data_postprocessing(export_df)
-export_all_param_df = data_postprocessing(export_all_param_df)
+    # init grib2 files
+    grib2_datas = Grib2Datas()
+    grib2_datas.load_folder(grib2_path)
 
-# save export
-export_to_csv(export_df, f".\\datas\\{exportname}")
-export_to_csv(export_all_param_df, f".\\datas\\all_param_{exportname}")
+    # combine dwd and grib2 datas
+    export_df = combine_datas(dwds, grib2_datas, model, param, False, dwd_params)
 
-# calculate IDW Values
-if model == MODEL_ICON_D2:
-    export_idw_df = calculate_idw(grib2_datas, export_df, model, param)
-    export_to_csv(export_idw_df, f".\\datas\\idw_{exportname}")
+    # contains all params
+    export_all_param_df = combine_datas(dwds, grib2_datas, model, param, True)
 
-# create example area for plot some clouds
-export_cloud_area_csv(dwds, grib2_datas, 52.5, 54.5, 12.0, 14.0, model_delta,
-                      f".\\datas\\DWD-Stations_in_Area_I_{model}.csv",
-                      f".\\datas\\Area_I_{model}.csv")
-export_cloud_area_csv(dwds, grib2_datas, 47.5, 49.5, 7.5, 9.5, model_delta,
-                      f".\\datas\\DWD-Stations_in_Area_II_{model}.csv",
-                      f".\\datas\\Area_II_{model}.csv")
+    # Postprocessing readed datas
+    export_df = data_postprocessing(export_df)
+    export_all_param_df = data_postprocessing(export_all_param_df)
+
+    # save export
+    print(f"~~~ {model} exports are written... ~~~")
+    export_to_csv(export_df, f".\\datas\\{exportname}")
+    export_to_csv(export_all_param_df, f".\\datas\\all_param_{exportname}")
+    print(f"~~~ {model} exports ready  ~~~")
+
+    if model == MODEL_ICON_D2:
+        # ONLY FOR ICON-D2: calculate IDW Values
+        export_idw_df = calculate_idw(grib2_datas, export_df, model, param)
+        export_to_csv(export_idw_df, f".\\datas\\idw_{exportname}")
+
+    # create example area for plot some clouds
+    export_cloud_area_csv(dwds, grib2_datas, model,
+                          52.5, 54.5, 12.0, 14.0, model_delta,
+                          f".\\datas\\DWD-Stations_in_Area_I_{model}.csv",
+                          f".\\datas\\Area_I_{model}.csv")
+    print(f"~~~ Area Data 1 {model} created ~~~")
+    export_cloud_area_csv(dwds, grib2_datas, model,
+                          47.5, 49.5, 7.5, 9.5, model_delta,
+                          f".\\datas\\DWD-Stations_in_Area_II_{model}.csv",
+                          f".\\datas\\Area_II_{model}.csv")
+    print(f"~~~ Area Data 2 {model} created ~~~")
