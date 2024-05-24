@@ -29,4 +29,5 @@ for lat, lon in zip(lats, lons):
 # Calculate model values
 df_car_profile = g2r.get_values(ioc.MODEL_ICON_D2, ioc.CLOUD_COVER, datetimes, coords)
 print(df_car_profile)
+print(df_car_profile.dtypes)
 

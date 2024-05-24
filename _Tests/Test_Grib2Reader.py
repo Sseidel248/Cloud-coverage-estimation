@@ -1,6 +1,7 @@
 import os
 import unittest
 import _Tests.testConsts as tc
+import numpy as np
 from datetime import datetime
 from Lib.Grib2Reader import Grib2Datas
 from Lib.IOConsts import *
@@ -82,7 +83,8 @@ class TestGrib2Reader(unittest.TestCase):
                              "Dummy",
                              datetime(2023, 11, 29, 18),
                              (54.4, 11.2))
-        self.assertEqual(0, len(df0))
+        self.assertEqual(1, len(df0))
+        self.assertTrue(df0["Dummy"].isna().all())
 
         # one datetime one coordinate - Model ICON-D2
         df1 = g2d.get_values("ICON-D2",
@@ -91,7 +93,7 @@ class TestGrib2Reader(unittest.TestCase):
                              (54.4, 11.2))
         self.assertEqual(98.9746, df1["TCDC"].iloc[0])
 
-        # one datetime more then one coordinates
+        # one datetime more than one coordinates
         df2 = g2d.get_values("ICON-D2",
                              "TCDC",
                              datetime(2023, 11, 29, 18),
@@ -99,7 +101,7 @@ class TestGrib2Reader(unittest.TestCase):
         self.assertEqual(98.9746, df2["TCDC"].iloc[0])
         self.assertEqual(100, df2["TCDC"].iloc[1])
 
-        # more then one datetimes and more then one coordinates
+        # more than one datetimes and more than one coordinates
         df3 = g2d.get_values("ICON-D2",
                              "TCDC",
                              [datetime(2023, 11, 29, 17, 45),
@@ -108,7 +110,7 @@ class TestGrib2Reader(unittest.TestCase):
         self.assertEqual(98.9746, df3["TCDC"].iloc[0])
         self.assertEqual(100, df3["TCDC"].iloc[1])
 
-        # more then one datetimes and one coordinates
+        # more than one datetimes and one coordinates
         df4 = g2d.get_values("ICON-D2",
                              "TCDC",
                              [datetime(2023, 11, 29, 17, 45),
@@ -134,7 +136,7 @@ class TestGrib2Reader(unittest.TestCase):
                                  datetime(2023, 11, 29, 17, 45),
                                  [(54.4, 11.2)],
                                  0.04)
-        self.assertEqual(-1, df2["TCDC"].iloc[0])  # no ICON-EU Files Found
+        self.assertTrue(df2["TCDC"].isna().all())  # no matching ICON-EU file found
 
         # Model unknown
         df3 = g2d.get_values_idw("ICON",
@@ -142,7 +144,7 @@ class TestGrib2Reader(unittest.TestCase):
                                  datetime(2023, 11, 29, 17, 45),
                                  [(54.4, 11.2)],
                                  0.04)
-        self.assertEqual(-1, df3["TCDC"].iloc[0])  # no ICON Files found
+        self.assertTrue(df3["TCDC"].isna().all())  # no ICON Files found
 
         # coords as one tuple
         df4 = g2d.get_values_idw("ICON-D2",

@@ -154,13 +154,23 @@ class Grib2Datas:
 
         Note:
 
-        The output DataFrame has the following columns:
+        The valid output DataFrame has the following columns:
             - `COL_DATE` (datetime): Contains the date searched for
             - `COL_MODEL_FCST_DATE` (datetime): Contains the date used, for the search the date of receipt was rounded to the full hour
             - `COL_MODEL_FCST_MIN` (Int): Contains the forecast minutes
             - `COL_LAT` (Float): Contains the latitude searched for
             - `COL_LON` (Float): Contains the longitude searched for
             - `<Param>` (Float): Contains the value of the parameter for the date and position searched for
+
+        If there are datetimes that do not exist in the model data or incorrect coordinates are used, the entry is invalid.
+
+        The invalid entry has the following values:
+            - `COL_DATE` (datetime): Contains the date searched for
+            - `COL_MODEL_FCST_DATE` (datetime): NaT (Not a Time)
+            - `COL_MODEL_FCST_MIN` (float): NaN (Not a Number)
+            - `COL_LAT` (Float): NaN (Not a Number)
+            - `COL_LON` (Float): NaN (Not a Number)
+            - `<Param>` (Float): NaN (Not a Number)
 
         The parameter `<Param>` changes depending on which parameter the grib2 file contains.
         """
@@ -200,6 +210,7 @@ class Grib2Datas:
         np_date_times_series = pd.Series(np_date_times.flatten())
         # round Datetimes to nearst hour
         np_date_times = np_date_round_func(np_date_times)
+        np_unique_datetimes = np.unique(np_date_times)
         # drop duplicates
         unique_date_times = np.unique(np_date_times)
         np_closest_grib2_date = np.vectorize(self._get_closest_date)
@@ -213,20 +224,24 @@ class Grib2Datas:
 
         # define the return DataFrame
         cols = [COL_DATE, COL_MODEL_FCST_DATE, COL_MODEL_FCST_MIN, COL_LAT, COL_LON, param]
-        lat_values, lon_values, value_values, datetimes, fcst_datetimes, fcst_min_values = [], [], [], [], [], []
+        lat_values, lon_values, model_values, fcst_datetimes, fcst_min_values = [], [], [], [], []
         values: DataFrame = DataFrame(columns=cols)
 
-        for date in unique_date_times:
+        # define invalid index array - used to insert invalid values at the end
+        invalid_indexes = []
+
+        for used_date, input_date in zip(unique_date_times, np_unique_datetimes):
             # Search Entry
             founded_df = self.df[(self.df[COL_MODEL] == model) &
                                  (self.df[COL_PARAM] == param) &
-                                 (self.df[COL_MODEL_FCST_DATE] == date)]
+                                 (self.df[COL_MODEL_FCST_DATE] == input_date)]
             if founded_df.empty:
+                invalid_indexes += list(np.where(np_date_times == input_date)[0])
                 continue
             filename = founded_df[COL_MODEL_FILENAME].iloc[0]
             fcst_min = founded_df[COL_MODEL_FCST_MIN].iloc[0]
             # get the index of date
-            used_date_indexes = np.where(np_date_times == date)[0]
+            used_date_indexes = np.where(np_date_times == used_date)[0]
             used_coords = np_coords[used_date_indexes]
 
             # Divide coordinates into groups of 50 and execute commands
@@ -245,19 +260,29 @@ class Grib2Datas:
                 value: float = -1
                 if match[0] != "9.999e+20":
                     value = float(match[0])
-                datetimes.append(date)
+                fcst_datetimes.append(used_date)
                 lat_values.append(lat)
                 lon_values.append(lon)
-                value_values.append(value)
+                model_values.append(value)
                 fcst_min_values.append(fcst_min)
+
+        # Add invalid values
+        invalid_indexes.sort()
+        for idx in invalid_indexes:
+            fcst_datetimes.insert(idx, pd.NaT)
+            fcst_min_values.insert(idx, np.nan)
+            lat_values.insert(idx, np.nan)
+            lon_values.insert(idx, np.nan)
+            model_values.insert(idx, np.nan)
+
         # for Performance - fill DataFrame outside loop
         if len(lat_values) > 0:
-            values = pd.DataFrame({COL_MODEL_FCST_DATE: datetimes,
+            values = pd.DataFrame({COL_MODEL_FCST_DATE: fcst_datetimes,
                                    COL_DATE: np_date_times_series,
                                    COL_MODEL_FCST_MIN: fcst_min_values,
                                    COL_LAT: lat_values,
                                    COL_LON: lon_values,
-                                   param: value_values
+                                   param: model_values
                                    }, columns=cols)
         return values
 
@@ -335,6 +360,10 @@ class Grib2Datas:
             idw_distances += distances
         # Calculate all param values
         values = self.get_values(model, param, date_times, idw_coords)
+        column_to_check = [COL_MODEL_FCST_DATE, COL_MODEL_FCST_MIN, COL_LAT, COL_LON, param]
+        # first all() check all column, second all() check this for all rows
+        if values[column_to_check].isna().all().all():
+            return values
         # get number of each idw points
         num_same_idw_calc = len(_create_coords_in_radius(1, 1, radius, delta)[0])
         # Calculate idw distance and idw values
