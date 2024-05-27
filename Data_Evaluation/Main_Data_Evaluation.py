@@ -165,6 +165,13 @@ def _make_subplot_cloud_coverage(ax: Axes,
                marker="x",
                alpha=1,
                transform=ccrs.PlateCarree())
+
+    # numbering the dots
+    for i, (lon, lat) in enumerate(zip(data_dwd[COL_LON], data_dwd[COL_LAT])):
+        # 'ha' and 'va' mean the position von 'marker'="x"
+        ax.annotate(f" {i}", (lon, lat), color='red', fontsize=20, ha='right', va='top',
+                    transform=ccrs.PlateCarree())
+
     return sc
 
 
@@ -266,7 +273,7 @@ def show_as_table(title: str,
                                 closest_entries_d2.reset_index(drop=True),
                                 closest_entries_eu.reset_index(drop=True)],
                                axis=1)
-    print(result_entries)
+    print(result_entries.to_string())
 
 
 def print_corr_results(pvalue_n: float, coef_c: float, pvalue_c):
