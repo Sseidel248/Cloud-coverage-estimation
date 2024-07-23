@@ -1,7 +1,7 @@
 """
 General Information:
 ______
-- File name:      Main_Downloader.py
+- File name:      Main_Data_Download.py
 - Author:         Sebastian Seidel
 - Date:           2023-11-15
 

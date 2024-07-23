@@ -15,10 +15,14 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
+from mpl_toolkits.basemap import Basemap
 import numpy
 import numpy as np
 import pandas as pd
 import statsmodels.api as sm
+from matplotlib.legend import Legend
+from matplotlib.transforms import Bbox
+
 import Lib.DataAnalysis as da
 
 from matplotlib import pyplot
@@ -96,7 +100,7 @@ def _show_median_on_violin(df: DataFrame,
     """
     for i, col in enumerate(df.columns):
         median_val = df[col].median()
-        a_plt.text(i + 1, median_val, f' {median_val:.2f}', color='black', ha='left', va='bottom')
+        a_plt.text(i + 1, median_val, f" {median_val:.2f}", color="black", ha="left", va="bottom")
 
 
 def _add_geographic(ax: Axes):
@@ -118,6 +122,7 @@ def _add_geographic(ax: Axes):
     ax.add_feature(cfeature.OCEAN)
     ax.add_feature(cfeature.LAKES, alpha=0.5)
     ax.add_feature(cfeature.RIVERS)
+
     gl = ax.gridlines(draw_labels=True, linewidth=1, color="gray", alpha=0.5, linestyle="--")
     gl.top_labels = False
     gl.right_labels = False
@@ -159,17 +164,17 @@ def _make_subplot_cloud_coverage(ax: Axes,
                     marker="s",
                     alpha=1,
                     transform=ccrs.PlateCarree())
-    ax.scatter(data_dwd[COL_LON], data_dwd[COL_LAT],
-               color="red",
-               s=50,
-               marker="x",
-               alpha=1,
-               transform=ccrs.PlateCarree())
+    # ax.scatter(data_dwd[COL_LON], data_dwd[COL_LAT],
+    # color="red",
+    # s=50,
+    # marker="x",
+    # alpha=1,
+    # transform=ccrs.PlateCarree())
 
     # numbering the dots
     for i, (lon, lat) in enumerate(zip(data_dwd[COL_LON], data_dwd[COL_LAT])):
         # 'ha' and 'va' mean the position von 'marker'="x"
-        ax.annotate(f" {i}", (lon, lat), color='red', fontsize=20, ha='right', va='top',
+        ax.annotate(f" {i}", (lon, lat), color="red", fontsize=20, ha="center", va="center",
                     transform=ccrs.PlateCarree())
 
     return sc
@@ -385,7 +390,7 @@ def make_compare_violinplt(df1: DataFrame,
     combined_df = pd.DataFrame({name1: df1[COL_ABS_ERROR], name2: df2[COL_ABS_ERROR]})
     combined_df.dropna(inplace=True)
     plt.violinplot(combined_df.values, showmedians=True)
-    plt.title(f"Verteilung vom MAE Modelle\n({name1} und {name2}) zu den DWD-Stationen", fontweight="bold")
+    plt.title(f"Vergleich vom MAE der Modelle\n({name1} und {name2}) zu den DWD-Stationen", fontweight="bold")
     plt.ylabel("MAE Bedeckungsgrad [%]")
     plt.xlabel("Modelle")
     plt.xticks(ticks=range(1, len(combined_df.columns) + 1), labels=combined_df.columns)
@@ -394,10 +399,13 @@ def make_compare_violinplt(df1: DataFrame,
     _show_and_export(plt, show, exportname)
 
 
-def make_qq_plot(df: DataFrame,
-                 title: str,
-                 show: bool = True,
-                 exportname: str = ""):
+def make_hist_qq_plot_compare(df: DataFrame,
+                              title_hist: str,
+                              title_qq: str,
+                              x_label_hist: str,
+                              y_label_hist: str,
+                              show: bool = True,
+                              exportname: str = ""):
     """
     Creates a quantile-quantile (Q-Q) plot to compare the empirical quantiles of the sample data in the DataFrame
     against the theoretical quantiles of a standard normal distribution. This plot helps in visually assessing
@@ -406,7 +414,10 @@ def make_qq_plot(df: DataFrame,
 
     :param df: The pandas DataFrame containing the sample data for which the Q-Q plot will be generated.
                Assumes that the DataFrame has a single column or that the first column will be used for the plot.
-    :param title: The title of the plot.
+    :param title_hist: The title of the histogram plot.
+    :param title_qq: The title of the qq-plot
+    :param x_label_hist: The label for the x-axis
+    :param y_label_hist: The label for the y-axis
     :param show: A boolean indicating whether to display the plot. Defaults to True.
     :param exportname: The filename for exporting the plot. If empty, the plot is not exported.
 
@@ -416,13 +427,25 @@ def make_qq_plot(df: DataFrame,
           if they perfectly followed a standard normal distribution. If 'show' is False or 'exportname' is
           provided, the plot is either not displayed or exported to a file, respectively.
     """
-    _set_fonts()
-    sm.qqplot(df, line='45')
-    plt.title(title, fontweight="bold")
-    plt.xlabel("Theoretische Quantile der Standardnormalverteilung")
-    plt.ylabel("Empirische Quantile der Stichprobe")
-    plt.grid(alpha=0.75)
-    plt.legend(labels=["Datenpunkt", "Ideallinie"], loc="lower right")
+    _set_fonts(1.4)
+    fig, axs = plt.subplots(1, 2, figsize=(10, 6))
+
+    # Histogramm
+    axs[0].hist(df, bins=30, edgecolor="black")
+    axs[0].set_title(title_hist, fontweight="bold")
+    axs[0].set_xlabel(x_label_hist)
+    axs[0].set_ylabel(y_label_hist)
+    axs[0].grid(alpha=0.75)
+
+    # Q-Q-Plot
+    sm.qqplot(df, line="45", ax=axs[1])
+    axs[1].set_title(title_qq, fontweight="bold")
+    axs[1].set_xlabel("Theoretische Quantile der Standard-\nnormalverteilung")
+    axs[1].set_ylabel("Empirische Quantile der Stichprobe")
+    axs[1].grid(alpha=0.75)
+    axs[1].legend(labels=["Datenpunkt", "Ideallinie"], loc="lower right")
+
+    plt.tight_layout()
     _show_and_export(plt, show, exportname)
 
 
@@ -491,6 +514,46 @@ def make_compare_proportion_lineplt(df1: DataFrame,
     plt.xticks([0, 12.5, 25, 37.5, 50, 62.5, 75, 87.5, 100],
                ["0/8", "1/8", "2/8", "3/8", "4/8", "5/8", "6/8", "7/8", "8/8"])
     plt.ylabel("Prozentualer Anteil [%]")
+    _show_and_export(plt, show, exportname)
+
+
+def make_compare_hist_plt(df1: DataFrame,
+                          df2: DataFrame,
+                          title: str,
+                          x_label: str,
+                          y_label: str,
+                          legend: list[str],
+                          show: bool = True,
+                          exportname: str = ""):
+    """
+    Generates a histogram comparing the distribution of two datasets. This function plots two histograms
+    in one figure, allowing for an easy comparison of the frequency distributions of the datasets.
+
+    :param df1: The pandas DataFrame for the first dataset.
+    :param df2: The pandas DataFrame for the second dataset.
+    :param title: The title of the plot.
+    :param x_label: The label for the x-axis.
+    :param y_label: The label for the y-axis.
+    :param legend: A list of legend labels corresponding to the datasets.
+    :param show: A boolean indicating whether to display the plot immediately. Defaults to True.
+    :param exportname: The filename for exporting the plot to an image file. If left as an empty string, the plot
+                       will not be exported.
+
+    Note: This visualization aids in comparing the distributions of two datasets by overlaying their histograms.
+          It provides insights into how the data points are spread across different values for each dataset.
+          The x-axis represents the data values, while the y-axis represents the frequency of data points.
+    """
+
+    _set_fonts()
+    plt.hist(df1, bins=40, color="skyblue", alpha=0.75, edgecolor="black")
+    plt.hist(df2, bins=40, color="orange", alpha=0.5, edgecolor="black")
+    plt.title(title, fontweight="bold")
+    plt.ylabel(y_label)
+    plt.xlabel(x_label)
+
+    plt.grid(alpha=0.75)
+
+    plt.legend(legend)
     _show_and_export(plt, show, exportname)
 
 
@@ -593,7 +656,8 @@ def make_scatterplot_dwd_locations(df: DataFrame,
                                    model: str = "",
                                    show_mean_abs_error: bool = False,
                                    custom_col_bar_label: str = "",
-                                   custom_title: str = ""):
+                                   custom_title: str = "",
+                                   with_topographie: bool = False):
     """
     Generates a scatter plot to visualize the geographic distribution of DWD stations, with an option to
     color-code the stations based on the Mean Absolute Error (MAE) of a specified model's predictions. This
@@ -634,6 +698,14 @@ def make_scatterplot_dwd_locations(df: DataFrame,
                    df_data[COL_LAT].min() - 1, df_data[COL_LAT].max() + 1],
                   crs=ccrs.PlateCarree())
     _add_geographic(ax)
+    if with_topographie:
+        m = Basemap(projection="cyl",
+                    llcrnrlat=df_data[COL_LAT].min() - 1,
+                    urcrnrlat=df_data[COL_LAT].max() + 1,
+                    llcrnrlon=df_data[COL_LON].min() - 1,
+                    urcrnrlon=df_data[COL_LON].max() + 1,
+                    ax=ax)
+        m.etopo()
     if show_mean_abs_error:
         sc = ax.scatter(df_data[COL_LON], df_data[COL_LAT],
                         c=df_data[COL_ABS_ERROR],
@@ -660,6 +732,7 @@ def make_scatterplot_dwd_locations(df: DataFrame,
     sc.set_label("DWD-Station")
     ax.legend()
     plt.tight_layout()
+
     _show_and_export(plt, show, exportname)
 
 
@@ -770,6 +843,7 @@ def make_scatterplots_cloud_coverage(model_data_icon_d2_area_1: str,
     colors = ["#4169E1", "#6495ED", "#6495ED", "#87CEFA", "#87CEFA", "#B0E2FF", "#B0E2FF", "#F0F0F0", "#F0F0F0",
               "#D3D3D3", "#D3D3D3", "#A9A9A9", "#A9A9A9", "#808080", "#808080", "#696969"]
 
+    # draw areas and DWD-Stations
     cloud_cmap = LinearSegmentedColormap.from_list("cloud_coverage", colors, N=len(colors))
     fig, axs = plt.subplots(2, 2,
                             figsize=(10, 10),
@@ -781,12 +855,20 @@ def make_scatterplots_cloud_coverage(model_data_icon_d2_area_1: str,
     _make_subplot_cloud_coverage(axs[1, 0], data_icon_d2_area_2, dwd_locs_area_2, cloud_cmap)
     _make_subplot_cloud_coverage(axs[0, 1], data_icon_eu_area_1, dwd_locs_area_1, cloud_cmap)
     sc = _make_subplot_cloud_coverage(axs[1, 1], data_icon_eu_area_2, dwd_locs_area_2, cloud_cmap)
-    # Access to the second Artist object which draws the DWD markings
-    fig.legend([axs[1, 1].collections[1]], ["DWD-Station"], loc="center", bbox_to_anchor=(0.5, 0.45))
+
+    # draw a custom legend  to represent the DWD-Stations
+    legend = Legend(fig, [], [], loc="center", frameon=True,
+                    bbox_to_anchor=Bbox.from_bounds(0.42, 0.4, 0.1, 0.1),
+                    title="0 bis n  -  DWD-Station", labelspacing=0, borderpad=0.2)
+    legend.get_title().set_color("red")
+    fig.legends.append(legend)
+
+    # Draw Plot
     cbar = fig.colorbar(sc, ax=[axs[0, 1], axs[1, 1]])
     cbar.set_label("Bedeckungsgrad [%]")
     cbar.set_ticks([0, 12.5, 25, 37.5, 50, 62.5, 75, 87.5, 100])
     plt.suptitle(f"Bedeckungsgrad der Modelle\n Datum: {date}", fontweight="bold")
+
     # Picture export as png because svg slow down word
     _show_and_export(plt, show, exportname)
     show_as_table("Area 1", dwd_locs_area_1, data_icon_d2_area_1, data_icon_eu_area_1)
@@ -908,36 +990,50 @@ def load(filename: str) -> DataFrame:
 # Initialisation
 show_plot = False
 dwd_params = ["V_N", "V_N_I", "D", "F", "RF_TU", "TT_TU", "P", "P0"]
-if not os.path.exists(f".\\plots"):
-    os.mkdir(f".\\plots")
+if not os.path.exists(f"plots"):
+    os.mkdir(f"plots")
 
 # Loading CSV-Files
 # df_d2_cloud_only = load(CSV_NAME_ICON_D2)
 # df_eu_cloud_only = load(CSV_NAME_ICON_EU)
-df_d2_full = load(f"..\\Data_Processing\\datas\\all_param_data_ICON-D2.csv")
+print("load CSV Files, please wait...\n")
+df_d2_full = load(f"datas/all_param_data_ICON-D2.csv")
 df_d2_cloud_only = _drop_param(df_d2_full, ["D", "F", "RF_TU", "TT_TU", "P", "P0"])
-df_eu_full = load(f"..\\Data_Processing\\datas\\all_param_data_ICON-EU.csv")
+df_eu_full = load(f"datas/all_param_data_ICON-EU.csv")
 df_eu_cloud_only = _drop_param(df_eu_full, ["D", "F", "RF_TU", "TT_TU", "P", "P0"])
-df_dwd_solar = load(f"..\\Data_Processing\\datas\\solar_DWD_Stationlocations.csv")
+df_dwd_solar = load(f"datas/solar_DWD_Stationlocations.csv")
+print("loading done.\n")
+
+# *** Data validation ***
 
 # Show all used DWD-Locations
 make_scatterplot_dwd_locations(df_d2_cloud_only, show_plot, f".\\plots\\ScatPlt_Verwendete_DWD-Stationen.svg")
+print("start calculation and create graphics...\n")
 make_scatterplot_dwd_locs_compare(df_d2_cloud_only, df_dwd_solar, show_plot,
-                                  f".\\plots\\ScatPlt_Bedeckungsgrad_Sonnenscheindauer.svg",
+                                  f".\\plots\\ScatPlt_Bedeckungsgrad_Strahlungsintensität.svg",
                                   "DWD Bedeckungsgrad",
-                                  "DWD Sonnenscheindauer",
+                                  "DWD Strahlungsintensität",
                                   "Geografische Verteilung der DWD-Stationen zum"
-                                  "\nMessen des Bedeckungsgrades und der Sonnenscheindauer")
+                                  "\nMessen des Bedeckungsgrades und der Strahlungsintensität")
+
+# Show used areas in germany for the example plot
+show_used_areas_dwd_stations(df_d2_cloud_only, show_plot, f".\\plots\\ScatPlt_DWD_Station_Cloud_Coverage.svg")
+
+# Show Weather example plot
+make_scatterplots_cloud_coverage(f".\\datas\\Area_I_ICON-D2.csv",
+                                 f".\\datas\\Area_I_ICON-EU.csv",
+                                 f".\\datas\\DWD-Stations_in_Area_I_ICON-D2.csv",
+                                 f".\\datas\\Area_II_ICON-D2.csv",
+                                 f".\\datas\\Area_II_ICON-EU.csv",
+                                 f".\\datas\\DWD-Stations_in_Area_II_ICON-D2.csv",
+                                 show_plot,
+                                 f".\\plots\\ScatPlt_Cloud_Coverage_Compare_ICON-D2_ICON-EU.png")
 
 # Calculate Errors (RMSE, MAE, ME) and show it as text and as diagramm
 da.calc_abs_error(df_d2_cloud_only, "TCDC", "V_N")
 da.calc_abs_error(df_eu_cloud_only, "TCDC", "V_N")
 show_error_metrics(df_d2_cloud_only, MODEL_ICON_D2, show_plot, 350000)
 show_error_metrics(df_eu_cloud_only, MODEL_ICON_EU, show_plot, 350000)
-make_compare_proportion_lineplt(df_d2_cloud_only,
-                                df_eu_cloud_only,
-                                show_plot,
-                                f".\\plots\\LinPlt_Differenz_Modell_DWD.svg")
 
 # Show Errors between Forecasts
 compare_fcst_error(df_d2_cloud_only, MODEL_ICON_D2, show_plot,
@@ -945,22 +1041,13 @@ compare_fcst_error(df_d2_cloud_only, MODEL_ICON_D2, show_plot,
 compare_fcst_error(df_eu_cloud_only, MODEL_ICON_EU, show_plot,
                    f".\\plots\\VioPlt_Fehler_zwischen_den_Prognosezeitpunkten_vom_ICON-EU.svg")
 
-# Show used areas in germany for the example plot
-show_used_areas_dwd_stations(df_d2_cloud_only, show_plot, f".\\plots\\ScatPlt_DWD_Station_Cloud_Coverage.svg")
-
-# Show Weather example plot
-make_scatterplots_cloud_coverage(f"..\\Data_Processing\\datas\\Area_I_ICON-D2.csv",
-                                 f"..\\Data_Processing\\datas\\Area_I_ICON-EU.csv",
-                                 f"..\\Data_Processing\\datas\\DWD-Stations_in_Area_I_ICON-D2.csv",
-                                 f"..\\Data_Processing\\datas\\Area_II_ICON-D2.csv",
-                                 f"..\\Data_Processing\\datas\\Area_II_ICON-EU.csv",
-                                 f"..\\Data_Processing\\datas\\DWD-Stations_in_Area_II_ICON-D2.csv",
-                                 show_plot,
-                                 f".\\plots\\ScatPlt_Cloud_Coverage_Compare_ICON-D2_ICON-EU.png")
-
-# Show compare of MAE from ICON-D2 and ICON-EU
-make_compare_violinplt(df_d2_cloud_only, MODEL_ICON_D2, df_eu_cloud_only, MODEL_ICON_EU, show_plot,
-                       f".\\plots\\VioPlt_MAE_Vergleich_ICON-D2_ICON-EU.svg")
+make_compare_hist_plt(df_d2_cloud_only[COL_ABS_ERROR], df_eu_cloud_only[COL_ABS_ERROR],
+                      f"Verteilung des absoluten Fehlers von ICON-D2 und ICON-EU zu den DWD-Stationen",
+                      f"Absoluter Fehler vom Bedeckungsgrad [%]",
+                      f"Anzahl berechnete Modelldaten",
+                      ["ICON_D2", "ICON-EU"],
+                      show_plot,
+                      f".\\plots\\HistPlt_Vergleich_MAE_Modelle_und_Stationen.svg")
 
 # Show difference between MAE for each DWD-Station of ICON-D2 and ICON-EU
 df_merged = pd.merge(
@@ -972,12 +1059,25 @@ df_merged = pd.merge(
 df_merged[COL_ABS_ERROR] = abs(df_merged[f'{COL_ABS_ERROR}_d2'] - df_merged[f'{COL_ABS_ERROR}_eu'])
 result_columns = [COL_STATION_ID, COL_LAT, COL_LON, COL_DATE, COL_ABS_ERROR]
 df_diff = df_merged[result_columns]
-make_scatterplot_dwd_locations(df_diff, show_plot, f".\\plots\\ScatPlt_Diff_MAE_vergleich_ICON-D2_EU.svg",
+make_scatterplot_dwd_locations(df_diff, show_plot,
+                               f".\\plots\\ScatPlt_Diff_MAE_vergleich_ICON-D2_EU.svg",
                                MODEL_ICON_D2, True,
                                "Differenz abs. Fehler vom Bedeckungsgrad [%]",
                                "Verteilung der Fehlerdifferenzen von ICON-D2 und ICON-EU\n"
-                               "bezogen auf die DWD-Stationen")
+                               "bezogen auf die DWD-Stationen",
+                               True)
 
+make_compare_proportion_lineplt(df_d2_cloud_only,
+                                df_eu_cloud_only,
+                                show_plot,
+                                f".\\plots\\LinPlt_Differenz_Modell_DWD.svg")
+
+# Show compare of MAE from ICON-D2 and ICON-EU
+make_compare_violinplt(df_d2_cloud_only, MODEL_ICON_D2, df_eu_cloud_only, MODEL_ICON_EU, show_plot,
+                       f".\\plots\\VioPlt_MAE_Vergleich_ICON-D2_ICON-EU.svg")
+
+
+# *** Data evaluation ***
 # only D2 #
 # D2 - Calculate outliers in the data
 dwd_outlier_d2 = calc_dwd_outliers(df_d2_cloud_only)
@@ -1003,7 +1103,7 @@ show_num_of_station_for_param(df_d2_full, ["V_N_I", "D", "F", "TT_TU", "RF_TU", 
                               "Luftdruck auf Meereshöhe NN (P)")
 show_num_of_station_for_param(df_d2_full, ["V_N_I", "D", "TT_TU", "RF_TU", "P0"], "Windgeschwindigkeit (F)")
 
-# remove unused DWD-Param
+# remove unused DWD-Param #
 # remove pressure at Station_height
 dwd_params.remove("P0")
 # remove wind direction
@@ -1019,18 +1119,13 @@ for dwd_param in dwd_params:
     print(f"\n~~~ {dwd_param} ~~~\n")
     print(da.get_dwd_col_details(dwd_station_all_param, dwd_param))
     param_details = dwd_station_all_param[dwd_param].dropna()
-    make_hist(param_details,
-              f"Verteilung vom Parameter: {dwd_param}",
-              "Anzahl Datenpunkte",
-              _get_param_x_label(dwd_param),
-              30,
-              show_plot,
-              f".\\plots\\HistPlt_Verteilung_DWD_Param_{dwd_param}.svg",
-              min_value=param_details.min())
-    make_qq_plot(param_details,
-                 f"QQ-Plot vom Parameter: {dwd_param}",
-                 show_plot,
-                 f".\\plots\\QQPlot_DWD_Param_{dwd_param}.png")
+    make_hist_qq_plot_compare(param_details,
+                              f"Verteilung vom Parameter: {dwd_param}",
+                              f"QQ-Plot vom Parameter: {dwd_param}",
+                              _get_param_x_label(dwd_param),
+                              "Anzahl Datenpunkte",
+                              show_plot,
+                              f".\\plots\\Hist_QQPlot_compare_DWD_Param_{dwd_param}.png")
     _, pvalue = da.normaltest(param_details)
     print(f"Normaltest von {dwd_param}: p-Value = {pvalue:.4f}")
     coef, pvaluer = da.calc_corr_coef(pvalue, dwd_station_all_param, COL_ABS_ERROR, dwd_param)
@@ -1046,7 +1141,7 @@ print(f"\nFehler: Personenmessung")
 show_me_mae_rmse(v_n_i_df[v_n_i_df["V_N_I"] == "P"], "TCDC", "V_N")
 
 # calculate DWD-Station locations with idw radius von 0.04°
-df_d2_idw_cloud_only = load(f"..\\Data_Processing\\datas\\idw_data_ICON-D2.csv")
+df_d2_idw_cloud_only = load(f".\\datas\\idw_data_ICON-D2.csv")
 da.calc_abs_error(df_d2_idw_cloud_only, "TCDC", "V_N")
 make_compare_violinplt(df_d2_cloud_only, "ICON-D2", df_d2_idw_cloud_only, "ICON-D2 mit IDW", show_plot,
                        f".\\plots\\VioPlt_MAE_Vergleich_ICON-D2_mit_ohne_IDW.svg")

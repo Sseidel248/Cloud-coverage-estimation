@@ -88,4 +88,4 @@ def download_data(download_list: List[DownloadData]):
                 content.write(response.content)
         else:
             print(f"Error downloading the file {data.url}. "
-                  f"The file may no longer exist.")
+                  f"The file may no longer exist. Response code: {response.status_code}")

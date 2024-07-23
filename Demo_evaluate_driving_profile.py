@@ -15,9 +15,9 @@ import Lib.IOConsts as ioc
 
 g2r = Grib2Datas()
 # choose the folde with the grib2 files of DWD forecast model
-g2r.load_folder(".\\Data_Downloader\\WeatherData\\icon-d2")
+g2r.load_folder(".\\Demo_data")
 # Csv-file must contain following columns: datetime_UTC, lat, lon
-car_profile = pd.read_csv("example_driving_profile.csv")
+car_profile = pd.read_csv(".\\Demo_data\\example_driving_profile.csv")
 # Specify formatting of the date string
 datetimes = pd.to_datetime(car_profile["datetime_UTC"], format="%Y.%m.%d %H:%M:%S")
 lats = car_profile["lat"]
@@ -28,6 +28,8 @@ for lat, lon in zip(lats, lons):
     coords += [(lat, lon)]
 # Calculate model values
 df_car_profile = g2r.get_values(ioc.MODEL_ICON_D2, ioc.CLOUD_COVER, datetimes, coords)
-print(df_car_profile)
-print(df_car_profile.dtypes)
+# print(df_car_profile.to_string())
+print("Show Data sample:")
+print(df_car_profile.head().to_string())
+# print(df_car_profile.dtypes)
 

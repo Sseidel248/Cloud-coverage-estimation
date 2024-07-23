@@ -375,7 +375,7 @@ def load_pkl(filename: str) -> DataFrame:
 
 # Init some vars and dirs
 param: str = CLOUD_COVER
-dwd_path: str = "..\\Data_Downloader\\WeatherStations\\"
+dwd_path: str = "WeatherStations\\"
 dwd_params = ["V_N", "V_N_I"]
 
 # init dwd txt files
@@ -384,26 +384,26 @@ dwds = DWDStations()
 dwds.load_folder(dwd_path)
 
 # check if target directory exist
-if not os.path.exists(f".\\datas"):
-    os.mkdir(f".\\datas")
+if not os.path.exists(f"datas"):
+    os.mkdir(f"datas")
 
 # Export Solar-Stationlocations with filterfile
-if os.path.exists(f".\\datas\\radiationStations.pkl"):
+if os.path.exists(f"datas\\radiationStations.pkl"):
     print(f"~~~ Processing - DWD Solarstations ~~~")
     dwd_solar = DWDStations()
     dwd_solar.load_folder(os.path.join(dwd_path, "solar"))
     export_solar_dwd = dwd_solar.df[[COL_STATION_ID, COL_LAT, COL_LON]].drop_duplicates(COL_STATION_ID)
-    useful_solar_station = load_pkl(f".\\datas\\radiationStations.pkl")
+    useful_solar_station = load_pkl(f"datas\\radiationStations.pkl")
     filter_mask = export_solar_dwd[COL_STATION_ID].isin(useful_solar_station.iloc[:, 0])
     export_solar_dwd = export_solar_dwd[filter_mask]
-    export_to_csv(export_solar_dwd, f".\\datas\\solar_DWD_Stationlocations.csv")
+    export_to_csv(export_solar_dwd, f"datas\\solar_DWD_Stationlocations.csv")
 
 models = [MODEL_ICON_D2, MODEL_ICON_EU]
 
 for model in models:
     print(f"~~~ Processing - {model} ~~~")
     exportname: str = f"data_{model}.csv"
-    grib2_path: str = f"..\\Data_Downloader\\WeatherData\\{model.lower()}"
+    grib2_path: str = f"..\\Run_Scripts\\WeatherData\\{model.lower()}"
     if model == MODEL_ICON_D2:
         model_delta: float = ICON_D2_LAT_LON_DELTA
     elif model == MODEL_ICON_EU:
@@ -427,14 +427,14 @@ for model in models:
 
     # save export
     print(f"~~~ {model} exports are written... ~~~")
-    export_to_csv(export_df, f".\\datas\\{exportname}")
-    export_to_csv(export_all_param_df, f".\\datas\\all_param_{exportname}")
+    export_to_csv(export_df, f"datas\\{exportname}")
+    export_to_csv(export_all_param_df, f"datas\\all_param_{exportname}")
     print(f"~~~ {model} exports ready  ~~~")
 
     if model == MODEL_ICON_D2:
         # ONLY FOR ICON-D2: calculate IDW Values
         export_idw_df = calculate_idw(grib2_datas, export_df, model, param)
-        export_to_csv(export_idw_df, f".\\datas\\idw_{exportname}")
+        export_to_csv(export_idw_df, f"datas\\idw_{exportname}")
 
     # create example area for plot some clouds
     export_cloud_area_csv(dwds, grib2_datas, model,

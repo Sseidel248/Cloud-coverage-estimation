@@ -119,6 +119,26 @@ class TestGrib2Reader(unittest.TestCase):
         self.assertEqual(98.9746, df4["TCDC"].iloc[0])
         self.assertEqual(98.9746, df4["TCDC"].iloc[1])
 
+        # more than one datetimes and more than one coordinates - vehicle not drive
+        df5 = g2d.get_values("ICON-D2",
+                             "TCDC",
+                             [datetime(2023, 11, 29, 17, 45),
+                              datetime(2023, 11, 29, 17, 46),
+                              datetime(2023, 11, 29, 17, 47)],
+                             [(54, 14), (54, 14), (54, 14)])
+        self.assertEqual(100, df5["TCDC"].iloc[0])
+        self.assertEqual(100, df5["TCDC"].iloc[1])
+        self.assertEqual(100, df5["TCDC"].iloc[2])
+
+        # more than one datetimes and more than one coordinates - same datetimes
+        df6 = g2d.get_values("ICON-D2",
+                             "TCDC",
+                             [datetime(2023, 11, 29, 17, 45),
+                              datetime(2023, 11, 29, 17, 45)],
+                             [(54, 14), (54, 14)])
+        self.assertEqual(100, df6["TCDC"].iloc[0])
+        self.assertEqual(100, df6["TCDC"].iloc[1])
+
     def test_get_values_idw(self):
         g2d = Grib2Datas()
         g2d.load_folder(tc.TEST_DIR_GRIB2)

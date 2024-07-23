@@ -125,7 +125,7 @@ class Grib2Datas:
             raise FileNotFoundError(f"No *.grib2 Files exist in '{path}'")
         for grib2 in tqdm(grib2_files, total=len(grib2_files), desc="Loading Grib2-Files"):
             self._load_file(os.path.abspath(grib2))
-        self._data_validation()
+        self._date_validation()
         self.df = self.df.sort_values(by=[COL_MODEL, COL_DATE])
 
     def get_values(self,
@@ -410,7 +410,7 @@ class Grib2Datas:
         # Return the Entry in Column COL_MODEL_FCST_DATE at Rowindex = closest_date_index
         return self.df.loc[closest_date_index, COL_MODEL_FCST_DATE]
 
-    def _data_validation(self):
+    def _date_validation(self):
         """
         Performs validation checks on the dataframe by filtering out entries with forecast minutes greater than 120.
 
