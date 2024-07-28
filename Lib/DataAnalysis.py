@@ -22,7 +22,7 @@ ______
 """
 import numpy as np
 from pandas import DataFrame, Series
-from scipy.stats import normaltest, pearsonr, spearmanr  # serves as interface
+from scipy.stats import normaltest, shapiro, anderson, pearsonr, spearmanr  # serves as interface
 from typing import Tuple
 from Lib.IOConsts import *
 

@@ -127,6 +127,7 @@ class DWDStations:
          DataFrame to collect results for the requested times and parameters. Data is loaded from corresponding
          files and merged into the result DataFrame. The method handles missing data gracefully, filling missing
          values where possible, and strips whitespace from parameter names to ensure accurate matching.
+         Removes entries containing NaN.
          """
 
         def conv_to_list(data):

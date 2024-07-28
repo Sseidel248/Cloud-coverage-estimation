@@ -15,8 +15,8 @@ Downloads data from measuring stations and weather models.
         `ICON-D2` - CLCT - Cloud Cover Total
         `ICON-EU` - CLCT - Cloud Cover Total
 """
-from WeatherModelData import *
-from WeatherStationData import *
+from Lib.WeatherModelData import *
+from Lib.WeatherStationData import *
 from Lib.HtmlGrabbler import download_data
 from colorama import Fore, Style
 
@@ -48,7 +48,7 @@ download_measuring_station = True
 
 # Download ICON-d2 data
 show_start_message("ICON-D2 CLCT Data")
-download_urls_d2 = get_dwd_model_data_links(HTML_ICON_D2, ".\\WeatherData")
+download_urls_d2 = get_dwd_model_data_links(HTML_ICON_D2, ".\\WeatherData_2")
 download_data(download_urls_d2)
 show_number_of_files(len(download_urls_d2))
 
@@ -61,7 +61,7 @@ show_number_of_files(len(download_urls_eu))
 if download_measuring_station:
     # Download current measured values from the measuring stations - Cloudiness
     show_start_message("Cloudiness (Measuring stations)")
-    download_urls_stations_cloudiness = get_dwd_html_links("cloudiness/", ".\\WeatherStations")
+    download_urls_stations_cloudiness = get_dwd_html_links("cloudiness/", ".\\WeatherStations_2")
     download_data(download_urls_stations_cloudiness)
     show_number_of_files(len(download_urls_stations_cloudiness))
 

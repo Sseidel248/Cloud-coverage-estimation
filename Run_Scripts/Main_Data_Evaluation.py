@@ -22,9 +22,7 @@ import pandas as pd
 import statsmodels.api as sm
 from matplotlib.legend import Legend
 from matplotlib.transforms import Bbox
-
 import Lib.DataAnalysis as da
-
 from matplotlib import pyplot
 from matplotlib.axes import Axes
 from matplotlib.collections import PathCollection
@@ -232,6 +230,8 @@ def _get_param_x_label(param: str) -> str:
         return "Lufttemperatur [°C]"
     elif param == "P":
         return "Luftdruck auf Meereshöhe NN [hPa]"
+    elif param == COL_STATION_HEIGHT:
+        return "Stationshöhe bezogen auf NN [m]"
     else:
         return "Undefinierter Parameter [-]"
 
@@ -1130,6 +1130,17 @@ for dwd_param in dwd_params:
     print(f"Normaltest von {dwd_param}: p-Value = {pvalue:.4f}")
     coef, pvaluer = da.calc_corr_coef(pvalue, dwd_station_all_param, COL_ABS_ERROR, dwd_param)
     print_corr_results(pvalue, coef, pvaluer)
+    # Shapiro - Data size must be < 5000
+    # _, pvalue = da.shapiro(param_details)
+    # print(f"Normaltest (shapiro) von {dwd_param}: p-Value = {pvalue:.4f}")
+    # Anderson - Compare res.statistic with res.critical_values
+    # res = da.anderson(param_details, dist='norm')
+    # print(f"Normaltest (anderson) von: ")
+    # print(f"Anderson-Darling-Teststatistik: {res.statistic}")
+    # print(f"  Signifikanzniveaus:{res.significance_level}")
+    # print(f"  Kritische Werte:   {res.critical_values}")
+    # print(f"Teststatistik > Kritische Werte =  nicht normalverteilt")
+
 
 print(f"\n~~~ Vergleich Instrumentmessung und Personenmessung - Bedeckungsgrad ~~~\n")
 print(
