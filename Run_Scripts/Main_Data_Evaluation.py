@@ -581,6 +581,7 @@ def show_error_metrics(df: DataFrame, model: str, show: bool = True, max_y_lim: 
     stations_info = da.get_mean_abs_error_each_station(df)
     print(f"\n~~~ {model} ~~~\n")
     show_me_mae_rmse(df, "TCDC", "V_N")
+    print(f"Anzahl Modelldaten für den Bedeckungsgrad: {len(df)}")
     print(f"{len(da.filter_dataframe_by_value(df, COL_ABS_ERROR, 5, False)) / len(df) * 100:.2f}% "
           f"der Daten haben einen absoluten Fehler von < 5% Bedeckungsgrad.")
     print(f"{len(da.filter_dataframe_by_value(df, COL_ABS_ERROR, 12.5, False)) / len(df) * 100:.2f}% "
@@ -922,7 +923,9 @@ def show_used_areas_dwd_stations(df_data: DataFrame,
     _show_and_export(plt, show, exportname)
 
 
-def show_num_of_station_for_param(df: DataFrame, drop_cols: list[str], param_descr: str):
+def show_num_of_station_for_param(df: DataFrame,
+                                  count_col: str,
+                                  param_descr: str):
     """
     Calculates and prints the number of unique stations capable of measuring specific parameters, as described
     by `param_descr`. This is determined by dropping specified columns from the DataFrame and counting the unique
@@ -930,8 +933,7 @@ def show_num_of_station_for_param(df: DataFrame, drop_cols: list[str], param_des
 
     :param df: The pandas DataFrame containing station data, including a column for station IDs (COL_STATION_ID)
                and measurements for various parameters.
-    :param drop_cols: A list of strings representing the names of the columns to be dropped. These columns are
-                      presumed to not be relevant for the current analysis.
+    :param count_col: ADefines the column from whose entries the stations are to be counted.
     :param param_descr: A descriptive string representing the parameters of interest for which the stations are
                         being counted. This description is used in the output message.
 
@@ -939,27 +941,27 @@ def show_num_of_station_for_param(df: DataFrame, drop_cols: list[str], param_des
           stations. By dropping irrelevant columns and rows with missing data, it provides a count of stations
           that have non-missing data for the remaining measurements.
     """
-    tmp = df.drop(drop_cols, axis=1).copy()
+    # create a filterlist
+    drop_list = [col for col in df.columns if col not in [COL_DATE, COL_LAT, COL_LON, COL_STATION_ID, count_col]]
+    tmp = df.drop(drop_list, axis=1).copy()
     tmp.dropna(inplace=True)
     print(f"Anzahl Stationen die nur {param_descr} messen können: {len(tmp[COL_STATION_ID].unique())}")
 
 
 def calc_dwd_outliers(df: DataFrame) -> DataFrame:
     """
-    Identifies DWD stations as outliers based on their Mean Absolute Error (MAE) being above a specified threshold.
-    The function calculates the MAE for each station and then applies a custom Z-score calculation to identify
-    outliers with an MAE exceeding 12.5%.
+    Identifies DWD stations as outliers if their mean absolute error (MAE) is above a certain threshold.
+    The function calculates the MAE value for each station to identify outliers with an MAE greater than 12.5%.
 
-    :param df: The pandas DataFrame containing station data and absolute error measurements.
+    :param df: The Pandas DataFrame with station data and absolute error measurements.
 
-    :return: A pandas DataFrame containing only the stations identified as outliers based on their MAE.
+    :return: A Pandas DataFrame containing only the stations identified as outliers based on their MAE.
 
-    Note: This function relies on a predefined threshold (12.5%) for identifying outliers. Stations with an MAE
+    Note: This function relies on a predefined threshold (12.5%) to identify outliers. Stations with an MAE
           above this threshold are considered outliers and are returned in the resulting DataFrame.
     """
     abs_error = da.get_mean_abs_error_each_station(df)
-    dwd_station_outliers = da.calc_custom_z_score(abs_error, COL_MEAN_ABS_ERROR, 12.5)
-    return da.filter_dataframe_by_value(dwd_station_outliers, COL_MEAN_ABS_ERROR, 12.5)
+    return da.filter_dataframe_by_value(abs_error, COL_MEAN_ABS_ERROR, 12.5, True)
 
 
 def load(filename: str) -> DataFrame:
@@ -1081,27 +1083,37 @@ make_compare_violinplt(df_d2_cloud_only, MODEL_ICON_D2, df_eu_cloud_only, MODEL_
 # only D2 #
 # D2 - Calculate outliers in the data
 dwd_outlier_d2 = calc_dwd_outliers(df_d2_cloud_only)
+filtered_df = df_d2_full[df_d2_full[COL_STATION_ID].isin(dwd_outlier_d2[COL_STATION_ID])]
 
 # collect all DWD-Stations who can measure all params
 print(f"\n~~~ DWD-Stationsinformationen ~~~\n")
 print(f"Anzahl aller Stationen (beinhaltet auch Stationshöhe): {len(df_d2_full[COL_STATION_ID].unique())}")
+print(f"Anzahl Stationen die als Ausreißer gelten: {len(dwd_outlier_d2)}")
 
-dwd_station_all_param = df_d2_full.dropna().copy()
-print(f"Anzahl der DWD-Stationen die alle Parameter messen: {len(dwd_station_all_param[COL_STATION_ID].unique())}")
-da.calc_abs_error(dwd_station_all_param, "TCDC", "V_N")
-
-show_num_of_station_for_param(df_d2_full, ["V_N_I", "D", "F", "RF_TU", "TT_TU", "P", "P0"], "Bedeckungsgrad (V_N)")
+da.calc_abs_error(df_d2_full, "TCDC", "V_N")
+show_num_of_station_for_param(df_d2_full, "V_N", "Bedeckungsgrad (V_N)")
 v_n_i_df = df_d2_cloud_only.dropna()
 measurment_counts = v_n_i_df['V_N_I'].value_counts()
+print(f"    Anzahl Datenpunkte für V_N: {len(v_n_i_df)}")
 print(f"    Davon wurden {measurment_counts['I'] / len(v_n_i_df) * 100:.2f} % durch ein Instrument aufgenommen.")
 print(f"    Davon wurden {measurment_counts['P'] / len(v_n_i_df) * 100:.2f} % durch eine Person aufgenommen.")
 print(f"    Für {measurment_counts['-999'] / len(v_n_i_df) * 100:.2f} % gab es keine Angaben.")
 
-show_num_of_station_for_param(df_d2_full, ["V_N_I", "V_N", "D", "F", "RF_TU", "P", "P0"], "Lufttemperatur (TT_TU)")
-show_num_of_station_for_param(df_d2_full, ["V_N_I", "V_N", "D", "F", "TT_TU", "P", "P0"], "relative Feuchte (RF_TU)")
-show_num_of_station_for_param(df_d2_full, ["V_N_I", "D", "F", "TT_TU", "RF_TU", "P0"],
-                              "Luftdruck auf Meereshöhe NN (P)")
-show_num_of_station_for_param(df_d2_full, ["V_N_I", "D", "TT_TU", "RF_TU", "P0"], "Windgeschwindigkeit (F)")
+show_num_of_station_for_param(df_d2_full, "TT_TU", "Lufttemperatur (TT_TU)")
+# tmp_df = df_d2_full[df_d2_full[COL_STATION_ID].isin(dwd_outlier_d2[COL_STATION_ID])]
+# print(f"    Davon Ausreißer TT_TU: {len(tmp_df[COL_STATION_ID].unique())}")
+
+show_num_of_station_for_param(df_d2_full, "RF_TU", "relative Feuchte (RF_TU)")
+# tmp_df = df_d2_full[df_d2_full[COL_STATION_ID].isin(dwd_outlier_d2[COL_STATION_ID])]
+# print(f"    Davon Ausreißer RF_TU: {len(tmp_df[COL_STATION_ID].unique())}")
+
+show_num_of_station_for_param(df_d2_full, "P", "Luftdruck auf Meereshöhe NN (P)")
+# tmp_df = df_d2_full[df_d2_full[COL_STATION_ID].isin(dwd_outlier_d2[COL_STATION_ID])]
+# print(f"    Davon Ausreißer P: {len(tmp_df[COL_STATION_ID].unique())}")
+
+show_num_of_station_for_param(df_d2_full, "F", "Windgeschwindigkeit (F)")
+# tmp_df = df_d2_full[df_d2_full[COL_STATION_ID].isin(dwd_outlier_d2[COL_STATION_ID])]
+# print(f"    Davon Ausreißer F: {len(tmp_df[COL_STATION_ID].unique())}")
 
 # remove unused DWD-Param #
 # remove pressure at Station_height
@@ -1114,11 +1126,19 @@ dwd_params.remove("V_N_I")
 # add Station-Height
 dwd_params.append(COL_STATION_HEIGHT)
 
+# outside the loop, because V_N don't use for correlation analysis
+print(f"\n~~~ V_N ~~~\n")
+print(da.get_dwd_col_details(filtered_df, "V_N"))
+
+# TODO: Filtern der dwd_station_all_param nach dem dwd_param & dwd_outlier_d2
 # explorative dataanalysis for each dwd param
 for dwd_param in dwd_params:
     print(f"\n~~~ {dwd_param} ~~~\n")
-    print(da.get_dwd_col_details(dwd_station_all_param, dwd_param))
-    param_details = dwd_station_all_param[dwd_param].dropna()
+    # Contains only the values, who is filtered by dwd_param
+
+    print(f"Anzahl Stationen (Ausreißer) von {dwd_param}: {len(filtered_df[COL_STATION_ID].unique())}")
+    print(da.get_dwd_col_details(filtered_df, dwd_param))
+    param_details = filtered_df[dwd_param].dropna()
     make_hist_qq_plot_compare(param_details,
                               f"Verteilung vom Parameter: {dwd_param}",
                               f"QQ-Plot vom Parameter: {dwd_param}",
@@ -1128,11 +1148,13 @@ for dwd_param in dwd_params:
                               f".\\plots\\Hist_QQPlot_compare_DWD_Param_{dwd_param}.png")
     _, pvalue = da.normaltest(param_details)
     print(f"Normaltest von {dwd_param}: p-Value = {pvalue:.4f}")
-    coef, pvaluer = da.calc_corr_coef(pvalue, dwd_station_all_param, COL_ABS_ERROR, dwd_param)
+    coef, pvaluer = da.calc_corr_coef(pvalue, df_d2_full, COL_ABS_ERROR, dwd_param)
     print_corr_results(pvalue, coef, pvaluer)
+
     # Shapiro - Data size must be < 5000
     # _, pvalue = da.shapiro(param_details)
     # print(f"Normaltest (shapiro) von {dwd_param}: p-Value = {pvalue:.4f}")
+
     # Anderson - Compare res.statistic with res.critical_values
     # res = da.anderson(param_details, dist='norm')
     # print(f"Normaltest (anderson) von: ")

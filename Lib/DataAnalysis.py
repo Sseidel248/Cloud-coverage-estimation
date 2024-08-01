@@ -128,31 +128,6 @@ def get_dwd_col_details(df: DataFrame, col_name: str) -> Series:
     return tmp.describe()
 
 
-def calc_custom_z_score(df: DataFrame, col_name: str, limit: float) -> DataFrame:
-    """
-    Calculates a custom Z-Score for a specified column in a Pandas DataFrame and adds it as a new column named
-    "Z_SCORE".
-
-    This custom Z-Score is computed using a modified formula: (value - limit) / custom_standard_deviation, where the
-    custom standard deviation is calculated based on the difference from a specified limit rather than the mean of the
-    column. This function checks if the specified column name exists in the DataFrame, calculates the custom Z-Score
-    for each value in the column using the specified limit, and then adds these custom Z-Scores as a new column to the
-    DataFrame.
-
-    :param df: A Pandas DataFrame containing the data.
-    :param col_name: The name of the column for which to calculate the custom Z-Score.
-    :param limit: A float representing the limit used to calculate the difference for the custom Z-Score instead of
-    using the mean.
-
-    :return: The original DataFrame with an additional column named "Z_SCORE" for the custom Z-Score of the specified
-    column.
-    """
-    _check_col_name_exist(df, col_name)
-    custom_std = np.sqrt(np.sum((df[col_name] - limit) ** 2) / len(df[col_name]) - 1)
-    df[COL_Z_SCORE] = (df[col_name] - limit) / custom_std
-    return df
-
-
 def calc_corr_coef(pvalue: float, df: DataFrame, col_name1: str, col_name2: str) -> Tuple[float, float]:
     """
     Calculates the correlation coefficient between two columns in a DataFrame. The type of correlation (Pearson
