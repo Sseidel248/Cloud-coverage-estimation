@@ -331,7 +331,7 @@ class Grib2Datas:
         :raises ValueError: If input dimensions or types are not as expected, or if any other input validations fail.
         """
 
-        def idw(group, dist_col, value_col, q=1):
+        def idw(group, dist_col, value_col, q=2):
             # Avoid division by zero
             group[dist_col] = np.where(group[dist_col] == 0, group[dist_col] + 1e-10, group[dist_col])
             d = group[dist_col]

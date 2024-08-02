@@ -20,7 +20,6 @@ from Lib.Grib2Reader import Grib2Datas
 from Lib.DWDStationReader import DWDStations
 from pandas import DataFrame
 from tqdm import tqdm
-from datetime import datetime
 from pathlib import Path
 from colorama import Fore, Style
 
