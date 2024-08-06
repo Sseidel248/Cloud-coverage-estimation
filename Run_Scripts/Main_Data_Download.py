@@ -61,7 +61,7 @@ show_number_of_files(len(download_urls_eu))
 if download_measuring_station:
     # Download current measured values from the measuring stations - Cloudiness
     show_start_message("Cloudiness (Measuring stations)")
-    download_urls_stations_cloudiness = get_dwd_html_links("cloudiness/", ".\\WeatherStations_2")
+    download_urls_stations_cloudiness = get_dwd_html_links("cloudiness/", ".\\WeatherStations")
     download_data(download_urls_stations_cloudiness)
     show_number_of_files(len(download_urls_stations_cloudiness))
 
