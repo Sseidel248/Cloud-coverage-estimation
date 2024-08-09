@@ -23,7 +23,8 @@ Information about wgrib2.exe:
 | colorama     | 0.4.6        |
 | matplotlib   | 3.8.2        |
 | numpy        | 1.26.2       |
-| pandas       | 2.1.4        |  
+| pandas       | 2.1.4        | 
+| requests     | 2.31.0       |
 | scipy        | 1.12.0       |
 | statsmodels  | 0.14.1       |
 | tqdm         | 4.66.1       |
