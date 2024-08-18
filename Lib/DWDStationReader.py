@@ -7,7 +7,8 @@ ______
 
 Description:
 ______
-
+Used to read the data of DWD stations (latitude and longitude) from the corresponding txt files of the
+of the DWD (German Weather Service).
 """
 import os
 import zipfile
