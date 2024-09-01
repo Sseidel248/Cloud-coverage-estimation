@@ -132,7 +132,7 @@ def calc_corr_coef(pvalue: float, df: DataFrame, col_name1: str, col_name2: str)
     """
     Calculates the correlation coefficient between two columns in a DataFrame. The type of correlation (Pearson
     or Spearman) is determined based on a given p-value threshold, which indicates whether the data are normally
-    distributed. Pearson correlation is used if the data are normally distributed (pvalue <= 0.05); otherwise,
+    distributed. Pearson correlation is used if the data are normally distributed (pvalue > 0.05); otherwise,
     Spearman correlation is used.
 
     :param pvalue: The p-value from a normality test that determines which correlation coefficient to use. A p-value
@@ -150,10 +150,10 @@ def calc_corr_coef(pvalue: float, df: DataFrame, col_name1: str, col_name2: str)
     _check_col_name_exist(df, col_name1)
     _check_col_name_exist(df, col_name2)
     data = df[[col_name1, col_name2]].dropna()
-    # Data not normally distributed
+    # Data normally distributed
     if pvalue > 0.05:
         coef, pvalue_r = pearsonr(data[col_name1], data[col_name2])
-    # Data normally distributed
+    # Data not normally distributed
     else:
         coef, pvalue_r = spearmanr(data[col_name1], data[col_name2])
     return coef, pvalue_r
