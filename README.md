@@ -15,6 +15,21 @@ Finally, an attempt is made to further increase the accuracy using a spatial int
 - ICON-D2 model data
 - ICON-EU model data
 
+## Step by Step
+That there are twice as many DWD stations for the total degree of coverage as there are DWD stations for measuring radiation intensity.
+
+<img src="https://github.com/user-attachments/assets/fb6e7276-5782-43b0-b441-ab7b4f2dda6e" alt="ScatPlt_Bedeckungsgrad_Strahlungsintensität" width="600" height="500" ><br>
+
+This would allow the DWD stations that measure the total degree of coverage to be used to solve the problem. Unfortunately, the DWD stations are not evenly distributed across Germany. That's why I use the forecast data from the German Weather Service (DWD). The DWD has two relevant models, ICON-EU and ICON-D2. The following image shows the different resolutions. The resolution of the ICON-EU model is 6.5km and the resolution of the ICON-D2 model is 2.1km.
+
+<img src="https://github.com/user-attachments/assets/e570c1f3-9286-4df0-a91f-c2535f1ab4e6" alt="ScatPlt_Cloud_Coverage_Compare_ICON-D2_ICON-EU" width="600" height="500"><img src="https://github.com/user-attachments/assets/79a1d456-5de8-473f-8636-968b9224ecd1" alt="ScatPlt_DWD_Station_Cloud_Coverage" width="350" height="250"><br>
+
+To check the accuracy of the model, the measured values of the DWD stations were compared with the calculated values of the model. 
+
+<img src="https://github.com/user-attachments/assets/e686d669-0857-4f14-a456-a53f1555195f" alt="VioPlt_MAE_Vergleich_ICON-D2_ICON-EU" width="600" height="500"><br>
+
+The ICON-D2 model is used to solve my problem. This allows a very high resolution to be guaranteed. Additional parameters can also be downloaded from the DWD if required.
+
 ## External libraries
 I use the wgrib2.exe and his library to read grib2 files.
 Version: 3.1.3
